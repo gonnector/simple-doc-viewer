@@ -1,0 +1,760 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>마크다운 렌더링 테스트</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --text: #1a1a2e;
+    --text-secondary: #555;
+    --border: #e0e0e0;
+    --code-bg: #f6f8fa;
+    --code-block-bg: #0d1117;
+    --code-text: #e6edf3;
+    --accent: #4A90D9;
+    --accent-light: #e8f0fe;
+    --blockquote-border: #4A90D9;
+    --table-stripe: #f8f9fa;
+    --highlight: #fff3bf;
+    --link: #2563eb;
+    --shadow: rgba(0,0,0,0.08);
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0d1117;
+      --text: #e6edf3;
+      --text-secondary: #8b949e;
+      --border: #30363d;
+      --code-bg: #161b22;
+      --code-block-bg: #161b22;
+      --code-text: #e6edf3;
+      --accent: #58a6ff;
+      --accent-light: #1c2d41;
+      --blockquote-border: #58a6ff;
+      --table-stripe: #161b22;
+      --highlight: #3d2e00;
+      --link: #58a6ff;
+      --shadow: rgba(0,0,0,0.3);
+    }
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.8;
+    padding: 0;
+  }
+
+  .header {
+    background: linear-gradient(135deg, #4A90D9 0%, #7B68EE 100%);
+    color: white;
+    padding: 2rem;
+    text-align: center;
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    box-shadow: 0 2px 10px var(--shadow);
+  }
+
+  .header h1 { font-size: 1.5rem; font-weight: 600; letter-spacing: -0.02em; }
+  .header p { font-size: 0.85rem; opacity: 0.85; margin-top: 0.3rem; }
+
+  .container {
+    max-width: 860px;
+    margin: 0 auto;
+    padding: 2.5rem 2rem 4rem;
+  }
+
+  /* Headings */
+  .container h1 { font-size: 2rem; font-weight: 700; margin: 2rem 0 1rem; padding-bottom: 0.4rem; border-bottom: 2px solid var(--accent); }
+  .container h2 { font-size: 1.5rem; font-weight: 600; margin: 2.5rem 0 1rem; padding-bottom: 0.3rem; border-bottom: 1px solid var(--border); color: var(--accent); }
+  .container h3 { font-size: 1.2rem; font-weight: 600; margin: 1.5rem 0 0.75rem; }
+
+  /* Paragraphs */
+  .container p { margin: 0.75rem 0; }
+
+  /* Strong, Em */
+  strong { font-weight: 700; }
+  em { font-style: italic; }
+  del { text-decoration: line-through; color: var(--text-secondary); }
+
+  /* Links */
+  a { color: var(--link); text-decoration: none; border-bottom: 1px solid transparent; transition: border-color 0.2s; }
+  a:hover { border-bottom-color: var(--link); }
+
+  /* Inline code */
+  code:not(pre code) {
+    background: var(--code-bg);
+    color: #d63384;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.9em;
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  }
+
+  /* Code blocks */
+  pre {
+    background: var(--code-block-bg);
+    color: var(--code-text);
+    padding: 1.2rem 1.5rem;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 1rem 0;
+    font-size: 0.88rem;
+    line-height: 1.6;
+    position: relative;
+    box-shadow: 0 2px 8px var(--shadow);
+  }
+
+  pre code {
+    font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+    background: none;
+    color: inherit;
+    padding: 0;
+  }
+
+  /* Language badge */
+  pre[data-lang]::before {
+    content: attr(data-lang);
+    position: absolute;
+    top: 0.5rem;
+    right: 0.75rem;
+    font-size: 0.7rem;
+    color: #8b949e;
+    text-transform: uppercase;
+    font-family: sans-serif;
+    letter-spacing: 0.05em;
+  }
+
+  /* Blockquote */
+  blockquote {
+    border-left: 4px solid var(--blockquote-border);
+    padding: 0.75rem 1.25rem;
+    margin: 1rem 0;
+    background: var(--accent-light);
+    border-radius: 0 6px 6px 0;
+    color: var(--text-secondary);
+  }
+  blockquote blockquote { margin-top: 0.5rem; border-left-color: #7B68EE; }
+
+  /* Horizontal Rule */
+  hr {
+    border: none;
+    height: 1px;
+    background: linear-gradient(to right, transparent, var(--border), transparent);
+    margin: 2rem 0;
+  }
+
+  /* Lists */
+  ul, ol { padding-left: 1.8rem; margin: 0.5rem 0; }
+  li { margin: 0.3rem 0; }
+  li::marker { color: var(--accent); }
+
+  /* Checkbox list */
+  .task-list-item { list-style: none; margin-left: -1.3rem; }
+  .task-list-item input[type="checkbox"] {
+    margin-right: 0.5rem;
+    accent-color: var(--accent);
+    transform: scale(1.15);
+    vertical-align: middle;
+  }
+
+  /* Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 1rem 0;
+    font-size: 0.92rem;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 1px 4px var(--shadow);
+  }
+  thead { background: var(--accent); color: white; }
+  th { padding: 0.7rem 1rem; font-weight: 600; text-align: center; }
+  td { padding: 0.6rem 1rem; border-bottom: 1px solid var(--border); }
+  tbody tr:nth-child(even) { background: var(--table-stripe); }
+  tbody tr:hover { background: var(--accent-light); }
+
+  /* Image */
+  img {
+    max-width: 100%;
+    height: auto;
+    border-radius: 8px;
+    margin: 1rem 0;
+    box-shadow: 0 2px 12px var(--shadow);
+  }
+
+  /* Keyboard */
+  kbd {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    padding: 0.15em 0.5em;
+    font-size: 0.85em;
+    font-family: inherit;
+    box-shadow: 0 1px 0 var(--shadow);
+  }
+
+  /* Details/Summary */
+  details {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    margin: 1rem 0;
+    background: var(--code-bg);
+  }
+  details[open] { padding-bottom: 1rem; }
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: var(--accent);
+    padding: 0.25rem 0;
+  }
+  summary:hover { text-decoration: underline; }
+
+  /* Highlight (mark) */
+  mark {
+    background: var(--highlight);
+    padding: 0.1em 0.3em;
+    border-radius: 3px;
+  }
+
+  /* Footnotes */
+  .footnotes { font-size: 0.85rem; color: var(--text-secondary); margin-top: 2rem; border-top: 1px solid var(--border); padding-top: 1rem; }
+  .footnote-ref { font-size: 0.75em; vertical-align: super; }
+
+  /* Math blocks */
+  .math-block {
+    text-align: center;
+    padding: 1rem;
+    margin: 1rem 0;
+    background: var(--code-bg);
+    border-radius: 8px;
+    overflow-x: auto;
+  }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--text-secondary); }
+
+  /* Syntax Highlighting (minimal) */
+  .hljs-keyword, .hljs-selector-tag { color: #ff7b72; }
+  .hljs-string, .hljs-attr { color: #a5d6ff; }
+  .hljs-comment { color: #8b949e; font-style: italic; }
+  .hljs-function, .hljs-title { color: #d2a8ff; }
+  .hljs-number { color: #79c0ff; }
+  .hljs-built_in { color: #ffa657; }
+  .hljs-params { color: #e6edf3; }
+  .hljs-meta { color: #8b949e; }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <h1>Markdown Rendering Test</h1>
+  <p>by Claude Code &mdash; 다양한 마크다운 요소 렌더링 데모</p>
+</div>
+
+<div class="container" id="content"></div>
+
+<script>
+// Minimal Markdown Parser
+const md = (function() {
+
+  function escapeHtml(str) {
+    return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function highlightCode(code, lang) {
+    let escaped = escapeHtml(code);
+    // Keywords
+    const keywords = {
+      javascript: /\b(function|const|let|var|return|if|else|for|while|class|new|this|import|export|from|of|in|typeof|instanceof|async|await|try|catch|throw)\b/g,
+      python: /\b(def|class|return|if|elif|else|for|while|import|from|as|with|try|except|raise|in|not|and|or|is|None|True|False|self|lambda|yield|pass)\b/g,
+      bash: /\b(echo|for|do|done|if|then|fi|in|function|local|export|source|cd|ls|mkdir|rm|cp|mv|cat|grep|awk|sed|chmod|chown)\b/g,
+      json: /("(?:[^"\\]|\\.)*")\s*:/g
+    };
+    const stringRegex = /(["'`])(?:(?!\1|\\).|\\.)*\1/g;
+    const commentRegex = {
+      javascript: /(\/\/.*$|\/\*[\s\S]*?\*\/)/gm,
+      python: /(#.*$|"""[\s\S]*?"""|'''[\s\S]*?''')/gm,
+      bash: /(#.*$)/gm
+    };
+    const numberRegex = /\b(\d+\.?\d*)\b/g;
+
+    // Apply highlighting with placeholders to avoid conflicts
+    let tokens = [];
+    let tokenIndex = 0;
+    function tokenize(match, cls) {
+      let placeholder = `\x00T${tokenIndex++}\x00`;
+      tokens.push({ placeholder, html: `<span class="hljs-${cls}">${match}</span>` });
+      return placeholder;
+    }
+
+    // Comments first
+    if (commentRegex[lang]) {
+      escaped = escaped.replace(commentRegex[lang], m => tokenize(m, 'comment'));
+    }
+    // Strings
+    if (lang !== 'json') {
+      escaped = escaped.replace(stringRegex, m => tokenize(m, 'string'));
+    }
+    // JSON keys
+    if (lang === 'json') {
+      escaped = escaped.replace(/"(?:[^"\\]|\\.)*"\s*:/g, m => tokenize(m, 'attr'));
+      escaped = escaped.replace(/"(?:[^"\\]|\\.)*"/g, m => tokenize(m, 'string'));
+    }
+    // Keywords
+    if (keywords[lang]) {
+      escaped = escaped.replace(keywords[lang], m => tokenize(m, 'keyword'));
+    }
+    // Numbers
+    escaped = escaped.replace(numberRegex, m => tokenize(m, 'number'));
+
+    // Replace placeholders
+    tokens.forEach(t => { escaped = escaped.replace(t.placeholder, t.html); });
+    return escaped;
+  }
+
+  function inlineFormat(text) {
+    // Images
+    text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+    // Links
+    text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    // Auto links
+    text = text.replace(/(^|[^"=])((https?:\/\/)[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
+    // Bold italic
+    text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    // Bold
+    text = text.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    // Italic
+    text = text.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    // Strikethrough
+    text = text.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    // Highlight
+    text = text.replace(/==(.+?)==/g, '<mark>$1</mark>');
+    // Inline code
+    text = text.replace(/`([^`]+)`/g, '<code>$1</code>');
+    // Footnote refs
+    text = text.replace(/\[\^(\d+)\]/g, '<sup class="footnote-ref"><a href="#fn$1" id="fnref$1">[$1]</a></sup>');
+    return text;
+  }
+
+  function parse(src) {
+    const lines = src.split('\n');
+    let html = '';
+    let i = 0;
+    let inList = false;
+    let listType = '';
+    let listDepth = 0;
+
+    function closeList() {
+      if (inList) {
+        while (listDepth >= 0) { html += listType === 'ul' ? '</ul>' : '</ol>'; listDepth--; }
+        inList = false; listDepth = 0;
+      }
+    }
+
+    while (i < lines.length) {
+      let line = lines[i];
+
+      // Code block
+      if (line.match(/^```(\w*)/)) {
+        closeList();
+        let lang = line.match(/^```(\w*)/)[1] || '';
+        let code = [];
+        i++;
+        while (i < lines.length && !lines[i].startsWith('```')) {
+          code.push(lines[i]); i++;
+        }
+        i++; // skip closing ```
+        let codeStr = code.join('\n');
+        let highlighted = lang && ['javascript','python','bash','json'].includes(lang)
+          ? highlightCode(codeStr, lang) : escapeHtml(codeStr);
+        html += `<pre${lang ? ` data-lang="${lang}"` : ''}><code>${highlighted}</code></pre>`;
+        continue;
+      }
+
+      // Math block
+      if (line.trim() === '$$') {
+        closeList();
+        let math = [];
+        i++;
+        while (i < lines.length && lines[i].trim() !== '$$') {
+          math.push(lines[i]); i++;
+        }
+        i++;
+        html += `<div class="math-block"><code>${escapeHtml(math.join('\n'))}</code></div>`;
+        continue;
+      }
+
+      // Headings
+      let hMatch = line.match(/^(#{1,6})\s+(.+)/);
+      if (hMatch) {
+        closeList();
+        let level = hMatch[1].length;
+        html += `<h${level}>${inlineFormat(hMatch[2])}</h${level}>`;
+        i++; continue;
+      }
+
+      // HR
+      if (line.match(/^(\*{3,}|-{3,}|_{3,})\s*$/)) {
+        closeList();
+        html += '<hr>';
+        i++; continue;
+      }
+
+      // Table
+      if (line.includes('|') && i + 1 < lines.length && lines[i+1].match(/^\|?\s*:?-+:?\s*\|/)) {
+        closeList();
+        let headers = line.split('|').filter(c => c.trim()).map(c => c.trim());
+        let alignLine = lines[i+1].split('|').filter(c => c.trim()).map(c => c.trim());
+        let aligns = alignLine.map(a => {
+          if (a.startsWith(':') && a.endsWith(':')) return 'center';
+          if (a.endsWith(':')) return 'right';
+          return 'left';
+        });
+        html += '<table><thead><tr>';
+        headers.forEach((h, idx) => {
+          html += `<th style="text-align:${aligns[idx] || 'left'}">${inlineFormat(h)}</th>`;
+        });
+        html += '</tr></thead><tbody>';
+        i += 2;
+        while (i < lines.length && lines[i].includes('|')) {
+          let cells = lines[i].split('|').filter(c => c.trim()).map(c => c.trim());
+          html += '<tr>';
+          cells.forEach((c, idx) => {
+            html += `<td style="text-align:${aligns[idx] || 'left'}">${inlineFormat(c)}</td>`;
+          });
+          html += '</tr>';
+          i++;
+        }
+        html += '</tbody></table>';
+        continue;
+      }
+
+      // Blockquote
+      if (line.match(/^>\s?/)) {
+        closeList();
+        let quoteLines = [];
+        while (i < lines.length && (lines[i].match(/^>\s?/) || (lines[i].trim() === '' && i + 1 < lines.length && lines[i+1]?.match(/^>/)))) {
+          quoteLines.push(lines[i].replace(/^>\s?/, ''));
+          i++;
+        }
+        html += `<blockquote>${parse(quoteLines.join('\n'))}</blockquote>`;
+        continue;
+      }
+
+      // Checklist
+      let checkMatch = line.match(/^[-*]\s+\[([ xX])\]\s+(.+)/);
+      if (checkMatch) {
+        if (!inList) { html += '<ul>'; inList = true; listType = 'ul'; }
+        let checked = checkMatch[1] !== ' ' ? ' checked disabled' : ' disabled';
+        html += `<li class="task-list-item"><input type="checkbox"${checked}>${inlineFormat(checkMatch[2])}</li>`;
+        i++; continue;
+      }
+
+      // Unordered list
+      let ulMatch = line.match(/^(\s*)([-*+])\s+(.+)/);
+      if (ulMatch) {
+        let indent = ulMatch[1].length;
+        let content = ulMatch[3];
+        if (!inList) { html += '<ul>'; inList = true; listType = 'ul'; listDepth = 0; }
+        html += `<li>${inlineFormat(content)}`;
+        // Peek next line for nested list
+        if (i + 1 < lines.length) {
+          let nextUl = lines[i+1].match(/^(\s*)([-*+])\s+/);
+          let nextOl = lines[i+1].match(/^(\s*)\d+\.\s+/);
+          if (nextUl && nextUl[1].length > indent) { html += '<ul>'; listDepth++; }
+          else if (nextOl && nextOl[1].length > indent) { html += '<ol>'; listDepth++; }
+          else { html += '</li>'; }
+          // Close nested levels
+          if ((nextUl && nextUl[1].length < indent) || (nextOl && nextOl[1].length < indent) || (!nextUl && !nextOl && lines[i+1].trim() !== '')) {
+            while(listDepth > 0 && ((nextUl && nextUl[1].length < indent) || (!nextUl && !nextOl))) {
+              html += '</ul></li>'; listDepth--; break;
+            }
+          }
+        } else { html += '</li>'; }
+        i++; continue;
+      }
+
+      // Ordered list
+      let olMatch = line.match(/^(\s*)\d+\.\s+(.+)/);
+      if (olMatch) {
+        let indent = olMatch[1].length;
+        let content = olMatch[2];
+        if (!inList) { html += '<ol>'; inList = true; listType = 'ol'; listDepth = 0; }
+        html += `<li>${inlineFormat(content)}`;
+        if (i + 1 < lines.length) {
+          let nextOl = lines[i+1].match(/^(\s*)\d+\.\s+/);
+          if (nextOl && nextOl[1].length > indent) { html += '<ol>'; listDepth++; }
+          else { html += '</li>'; }
+          if (nextOl && nextOl[1].length < indent) {
+            html += '</ol></li>'; listDepth--;
+          }
+        } else { html += '</li>'; }
+        i++; continue;
+      }
+
+      // Footnote definitions
+      let fnMatch = line.match(/^\[\^(\d+)\]:\s+(.+)/);
+      if (fnMatch) {
+        closeList();
+        html += `<div class="footnotes"><p id="fn${fnMatch[1]}"><sup>${fnMatch[1]}</sup> ${inlineFormat(fnMatch[2])} <a href="#fnref${fnMatch[1]}">↩</a></p></div>`;
+        i++; continue;
+      }
+
+      // Details/Summary (pass-through HTML)
+      if (line.match(/^<details/i) || line.match(/^<summary/i) || line.match(/^<\/details/i) || line.match(/^<\/summary/i)) {
+        closeList();
+        html += line;
+        i++; continue;
+      }
+
+      // Definition list
+      if (line.match(/^:\s+/) && html.match(/<p>[^<]+<\/p>$/)) {
+        let def = line.replace(/^:\s+/, '');
+        html = html.replace(/<p>([^<]+)<\/p>$/, `<dt>$1</dt><dd>${inlineFormat(def)}</dd>`);
+        i++; continue;
+      }
+
+      // Empty line
+      if (line.trim() === '') {
+        closeList();
+        i++; continue;
+      }
+
+      // Paragraph
+      closeList();
+      let pLines = [line];
+      i++;
+      while (i < lines.length && lines[i].trim() !== '' && !lines[i].match(/^[#>|\-*\d`$<]/) && !lines[i].match(/^\[\^/)) {
+        pLines.push(lines[i]); i++;
+      }
+      html += `<p>${inlineFormat(pLines.join(' '))}</p>`;
+    }
+
+    closeList();
+    return html;
+  }
+
+  return { parse };
+})();
+
+// Markdown content (embedded)
+const markdownContent = `# 마크다운 렌더링 테스트
+
+## 1. 텍스트 서식
+
+일반 텍스트입니다. **굵은 글씨**, *기울임*, ***굵은 기울임***, ~~취소선~~, \`인라인 코드\`를 테스트합니다.
+
+> 인용문입니다. 마크다운은 2004년 John Gruber가 만들었습니다.
+>
+> > 중첩된 인용문도 가능합니다.
+
+---
+
+## 2. 목록
+
+### 순서 없는 목록
+- 사과
+- 바나나
+  - 노란 바나나
+  - 초록 바나나
+- 딸기
+  - 국내산
+    - 설향
+    - 금실
+
+### 순서 있는 목록
+1. 첫 번째 항목
+2. 두 번째 항목
+3. 세 번째 항목
+   1. 하위 항목 A
+   2. 하위 항목 B
+
+### 체크리스트
+- [x] 완료된 작업
+- [x] 이것도 완료
+- [ ] 아직 안 한 작업
+- [ ] 이것도 남음
+
+---
+
+## 3. 코드 블록
+
+### JavaScript
+\`\`\`javascript
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// 피보나치 수열 출력
+for (let i = 0; i < 10; i++) {
+  console.log(\\\`F(\\\${i}) = \\\${fibonacci(i)}\\\`);
+}
+\`\`\`
+
+### Python
+\`\`\`python
+class DataProcessor:
+    def __init__(self, data: list[dict]):
+        self.data = data
+
+    def filter_by(self, key: str, value: any) -> list[dict]:
+        """조건에 맞는 데이터를 필터링합니다."""
+        return [item for item in self.data if item.get(key) == value]
+
+    def summary(self) -> dict:
+        return {
+            "total": len(self.data),
+            "keys": list(self.data[0].keys()) if self.data else []
+        }
+\`\`\`
+
+### Bash
+\`\`\`bash
+#!/bin/bash
+echo "현재 디렉토리: $(pwd)"
+for file in *.md; do
+    echo "마크다운 파일 발견: $file"
+    wc -l "$file"
+done
+\`\`\`
+
+---
+
+## 4. 테이블
+
+| 기능 | Chrome | Firefox | Safari | Edge |
+|------|:------:|:-------:|:------:|:----:|
+| CSS Grid | ✅ | ✅ | ✅ | ✅ |
+| WebGPU | ✅ | ⚠️ | ❌ | ✅ |
+| Container Queries | ✅ | ✅ | ✅ | ✅ |
+| View Transitions | ✅ | ❌ | ❌ | ✅ |
+
+### 정렬 테스트
+
+| 왼쪽 정렬 | 가운데 정렬 | 오른쪽 정렬 |
+|:-----------|:----------:|----------:|
+| AAA | BBB | CCC |
+| 긴 텍스트 예시 | 중간 | 12,345 |
+| Hello | World | 99.9% |
+
+---
+
+## 5. 링크 & 이미지
+
+### 링크
+- [GitHub](https://github.com)
+- [MDN Web Docs](https://developer.mozilla.org)
+- 자동 링크: https://www.example.com
+
+### 이미지
+![Placeholder 이미지](https://via.placeholder.com/600x200/4A90D9/ffffff?text=Markdown+Rendering+Test)
+
+---
+
+## 6. 수학 표현 (LaTeX)
+
+인라인 수학: \`E = mc²\`
+
+블록 수학:
+
+$$
+∫₀^∞ e^(-x²) dx = √π / 2
+$$
+
+$$
+Σ(n=1→∞) 1/n² = π²/6
+$$
+
+---
+
+## 7. 각주
+
+마크다운은 읽기 쉬운 문서 형식입니다[^1]. HTML로 변환할 수 있습니다[^2].
+
+[^1]: 2004년에 처음 공개되었습니다.
+[^2]: 다양한 변환 라이브러리가 존재합니다.
+
+---
+
+## 8. 정의 목록
+
+마크다운
+: 경량 마크업 언어의 하나
+
+HTML
+: HyperText Markup Language의 약자
+
+CSS
+: Cascading Style Sheets의 약자
+
+---
+
+## 9. 이모지 & 특수문자
+
+🚀 로켓 | 🎯 타겟 | 💻 컴퓨터 | 📊 차트 | ⚡ 번개 | 🔥 불꽃
+
+특수문자: & < > © ™ → ←
+
+---
+
+## 10. 접기/펼치기
+
+<details>
+<summary>클릭하여 펼치기</summary>
+
+숨겨진 내용입니다. 마크다운에서 HTML 태그도 사용할 수 있습니다.
+
+\`\`\`json
+{
+  "name": "markdown-test",
+  "version": "1.0.0",
+  "description": "마크다운 렌더링 테스트 파일"
+}
+\`\`\`
+
+</details>
+
+---
+
+## 11. 하이라이트 & 키보드
+
+==하이라이트된 텍스트== (일부 렌더러 지원)
+
+키보드 단축키: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>
+
+---
+
+## 12. 수평선 스타일
+
+위: 별표 방식
+
+***
+
+위: 하이픈 방식
+
+---
+
+위: 밑줄 방식
+
+___
+
+끝.`;
+
+document.getElementById('content').innerHTML = md.parse(markdownContent);
+</script>
+</body>
+</html>

@@ -1,0 +1,1587 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Document Explorer — cc-general</title>
+<style>
+  :root {
+    --bg: #0e1117;
+    --sidebar-bg: #161b22;
+    --content-bg: #0d1117;
+    --border: #30363d;
+    --text: #e6edf3;
+    --text-dim: #8b949e;
+    --accent: #58a6ff;
+    --accent2: #7ee787;
+    --accent3: #d2a8ff;
+    --hover: #1c2128;
+    --selected: #1f2937;
+    --badge-md: #3fb950;
+    --badge-json: #f0883e;
+    --badge-ts: #3178c6;
+    --badge-js: #f1e05a;
+    --badge-yaml: #cb171e;
+    --badge-docker: #2496ed;
+    --badge-text: #8b949e;
+    --prompt-bg: #161b22;
+    --code-bg: #161b22;
+    --scrollbar: #30363d;
+    --scrollbar-hover: #484f58;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Noto Sans KR', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    height: 100vh;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .header h1 { font-size: 14px; font-weight: 600; color: var(--text); letter-spacing: -0.01em; }
+  .header .path-badge {
+    font-size: 11px;
+    color: var(--text-dim);
+    background: var(--bg);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+  }
+  .header-right { display: flex; gap: 8px; }
+  .header-btn {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    padding: 4px 10px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11px;
+    transition: all 0.15s;
+  }
+  .header-btn:hover { color: var(--text); border-color: var(--text-dim); }
+  .header-btn.active { color: var(--accent); border-color: var(--accent); background: rgba(88,166,255,0.1); }
+
+  /* Main layout */
+  .main { display: flex; flex: 1; overflow: hidden; }
+
+  /* Sidebar */
+  .sidebar {
+    width: 280px;
+    min-width: 280px;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .sidebar-header {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+  }
+  .sidebar-header input {
+    flex: 1;
+    background: var(--bg);
+    border: 1px solid var(--border);
+    color: var(--text);
+    padding: 5px 10px;
+    border-radius: 6px;
+    font-size: 12px;
+    outline: none;
+  }
+  .sidebar-header input:focus { border-color: var(--accent); }
+  .sidebar-header input::placeholder { color: var(--text-dim); }
+
+  .file-tree {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 0;
+  }
+
+  .tree-item {
+    display: flex;
+    align-items: center;
+    padding: 4px 12px;
+    cursor: pointer;
+    font-size: 13px;
+    transition: background 0.1s;
+    gap: 6px;
+    user-select: none;
+    white-space: nowrap;
+  }
+  .tree-item:hover { background: var(--hover); }
+  .tree-item.selected { background: var(--selected); color: var(--accent); }
+  .tree-item.dir { color: var(--text-dim); }
+  .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 12px; }
+  .tree-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .tree-item .badge {
+    font-size: 9px;
+    padding: 1px 5px;
+    border-radius: 3px;
+    font-weight: 600;
+    text-transform: uppercase;
+    flex-shrink: 0;
+  }
+  .tree-item .size { font-size: 10px; color: var(--text-dim); flex-shrink: 0; }
+
+  .tree-indent { display: inline-block; width: 16px; flex-shrink: 0; }
+
+  /* Content Area */
+  .content-area {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .content-tabs {
+    display: flex;
+    align-items: center;
+    background: var(--sidebar-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 0 8px;
+    flex-shrink: 0;
+    gap: 0;
+    overflow-x: auto;
+  }
+  .tab {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+  .tab:hover { color: var(--text); }
+  .tab.active { color: var(--text); border-bottom-color: var(--accent); }
+  .tab .close {
+    width: 14px; height: 14px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 3px;
+    font-size: 10px;
+    opacity: 0;
+    transition: opacity 0.1s;
+  }
+  .tab:hover .close { opacity: 0.6; }
+  .tab .close:hover { opacity: 1; background: var(--border); }
+
+  .content-body {
+    flex: 1;
+    overflow-y: auto;
+    padding: 24px 32px;
+  }
+
+  /* Welcome screen */
+  .welcome {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--text-dim);
+    gap: 12px;
+  }
+  .welcome .icon-large { font-size: 48px; opacity: 0.3; }
+  .welcome h2 { font-size: 16px; font-weight: 500; }
+  .welcome p { font-size: 13px; }
+  .welcome .keys { display: flex; gap: 6px; margin-top: 8px; }
+  .welcome kbd {
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-family: monospace;
+  }
+
+  /* Rendered Markdown */
+  .md-rendered { line-height: 1.7; max-width: 860px; }
+  .md-rendered h1 { font-size: 1.8em; font-weight: 700; margin: 1.5em 0 0.5em; padding-bottom: 0.3em; border-bottom: 1px solid var(--border); }
+  .md-rendered h2 { font-size: 1.4em; font-weight: 600; margin: 1.8em 0 0.5em; padding-bottom: 0.25em; border-bottom: 1px solid var(--border); color: var(--accent); }
+  .md-rendered h3 { font-size: 1.15em; font-weight: 600; margin: 1.2em 0 0.4em; }
+  .md-rendered h4 { font-size: 1em; font-weight: 600; margin: 1em 0 0.3em; color: var(--accent3); }
+  .md-rendered p { margin: 0.6em 0; }
+  .md-rendered strong { font-weight: 700; color: #fff; }
+  .md-rendered em { font-style: italic; }
+  .md-rendered del { text-decoration: line-through; color: var(--text-dim); }
+  .md-rendered a { color: var(--accent); text-decoration: none; }
+  .md-rendered a:hover { text-decoration: underline; }
+  .md-rendered code:not(pre code) {
+    background: rgba(110,118,129,0.2);
+    color: #ff7b72;
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+    font-size: 0.88em;
+    font-family: 'Cascadia Code','Fira Code',Consolas,monospace;
+  }
+  .md-rendered pre {
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    padding: 14px 18px;
+    border-radius: 8px;
+    overflow-x: auto;
+    margin: 0.8em 0;
+    font-size: 13px;
+    line-height: 1.5;
+    position: relative;
+  }
+  .md-rendered pre code {
+    font-family: 'Cascadia Code','Fira Code',Consolas,monospace;
+    background: none; color: var(--text); padding: 0;
+  }
+  .md-rendered pre[data-lang]::after {
+    content: attr(data-lang);
+    position: absolute; top: 6px; right: 10px;
+    font-size: 10px; color: var(--text-dim);
+    text-transform: uppercase; font-family: sans-serif;
+  }
+  .md-rendered blockquote {
+    border-left: 3px solid var(--accent);
+    padding: 8px 16px;
+    margin: 0.8em 0;
+    color: var(--text-dim);
+    background: rgba(88,166,255,0.05);
+    border-radius: 0 6px 6px 0;
+  }
+  .md-rendered blockquote blockquote { border-left-color: var(--accent3); }
+  .md-rendered hr { border: none; height: 1px; background: var(--border); margin: 1.5em 0; }
+  .md-rendered ul, .md-rendered ol { padding-left: 1.6em; margin: 0.5em 0; }
+  .md-rendered li { margin: 0.25em 0; }
+  .md-rendered li::marker { color: var(--accent); }
+  .md-rendered table { width: 100%; border-collapse: collapse; margin: 0.8em 0; font-size: 13px; }
+  .md-rendered thead { background: rgba(88,166,255,0.1); }
+  .md-rendered th { padding: 8px 12px; font-weight: 600; text-align: left; border-bottom: 2px solid var(--border); }
+  .md-rendered td { padding: 6px 12px; border-bottom: 1px solid var(--border); }
+  .md-rendered tbody tr:hover { background: rgba(88,166,255,0.03); }
+  .md-rendered img { max-width: 100%; border-radius: 8px; margin: 0.5em 0; }
+  .md-rendered kbd {
+    background: var(--sidebar-bg); border: 1px solid var(--border);
+    padding: 1px 6px; border-radius: 4px; font-size: 0.85em;
+    border-bottom-width: 2px;
+  }
+  .md-rendered details { border: 1px solid var(--border); border-radius: 8px; padding: 10px 14px; margin: 0.8em 0; }
+  .md-rendered summary { cursor: pointer; font-weight: 600; color: var(--accent); }
+  .md-rendered ins { text-decoration: none; color: var(--accent2); }
+  .md-rendered .task-item { list-style: none; margin-left: -1.3em; }
+  .md-rendered .task-item input { margin-right: 6px; accent-color: var(--accent); }
+
+  /* Raw text view */
+  .raw-view {
+    font-family: 'Cascadia Code','Fira Code',Consolas,monospace;
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    word-break: break-all;
+    color: var(--text);
+    counter-reset: line;
+  }
+  .raw-line {
+    display: flex;
+    min-height: 1.6em;
+  }
+  .raw-line:hover { background: rgba(88,166,255,0.04); }
+  .line-num {
+    display: inline-block;
+    width: 44px;
+    text-align: right;
+    padding-right: 16px;
+    color: var(--text-dim);
+    opacity: 0.5;
+    flex-shrink: 0;
+    user-select: none;
+    font-size: 12px;
+  }
+  .line-content { flex: 1; }
+
+  /* Syntax highlight tokens */
+  .tok-kw { color: #ff7b72; }
+  .tok-str { color: #a5d6ff; }
+  .tok-num { color: #79c0ff; }
+  .tok-cm { color: #8b949e; font-style: italic; }
+  .tok-fn { color: #d2a8ff; }
+  .tok-op { color: #ff7b72; }
+  .tok-key { color: #7ee787; }
+
+  /* Prompt bar */
+  .prompt-bar {
+    background: var(--prompt-bg);
+    border-top: 1px solid var(--border);
+    padding: 10px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+  .prompt-bar .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--text-dim);
+    flex-shrink: 0;
+  }
+  .prompt-text {
+    flex: 1;
+    font-size: 12px;
+    color: var(--text);
+    font-family: 'Cascadia Code','Fira Code',Consolas,monospace;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .copy-btn {
+    background: var(--accent);
+    color: #000;
+    border: none;
+    padding: 5px 14px;
+    border-radius: 6px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition: all 0.15s;
+  }
+  .copy-btn:hover { filter: brightness(1.15); }
+  .copy-btn.copied { background: var(--accent2); }
+
+  /* Stats bar */
+  .stats {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+  }
+  .stat {
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  .stat b { color: var(--text); font-weight: 600; }
+
+  /* Scrollbar */
+  ::-webkit-scrollbar { width: 8px; height: 8px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 4px; }
+  ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
+</style>
+</head>
+<body>
+
+<div class="header">
+  <div class="header-left">
+    <h1>Document Explorer</h1>
+    <span class="path-badge">C:\Users\Pro\cc-general</span>
+  </div>
+  <div class="header-right">
+    <div class="stats">
+      <span class="stat"><b id="stat-files">0</b> files</span>
+      <span class="stat"><b id="stat-dirs">0</b> dirs</span>
+      <span class="stat"><b id="stat-md">0</b> viewable</span>
+    </div>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <input type="text" id="search" placeholder="Search files..." oninput="filterTree(this.value)">
+    </div>
+    <div class="file-tree" id="file-tree"></div>
+  </div>
+
+  <div class="content-area">
+    <div class="content-tabs" id="tabs"></div>
+    <div class="content-body" id="content-body">
+      <div class="welcome">
+        <div class="icon-large">&#128196;</div>
+        <h2>Document Explorer</h2>
+        <p>Click a file to view its contents. Markdown files render automatically.</p>
+        <div class="keys">
+          <kbd>.md</kbd> <kbd>.txt</kbd> <kbd>.json</kbd> <kbd>.ts</kbd> <kbd>.js</kbd> <kbd>.yaml</kbd>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="prompt-bar">
+  <span class="label">Prompt</span>
+  <span class="prompt-text" id="prompt-text">Select a file to generate a contextual prompt.</span>
+  <button class="copy-btn" id="copy-btn" onclick="copyPrompt()">Copy</button>
+</div>
+
+<script>
+// ─── FILE DATA ────────────────────────────────────────
+const FILES = {};
+const TREE = [
+  { name: ".claude", type: "dir", children: [] },
+  { name: "claude-talk-to-figma-mcp", type: "dir", children: [
+    { name: ".gitignore", type: "file", size: "598 B", ext: "text" },
+    { name: "bun.lock", type: "file", size: "116 KB", ext: "lock" },
+    { name: "CHANGELOG.md", type: "file", size: "11.3 KB", ext: "md" },
+    { name: "COMMANDS.md", type: "file", size: "5 KB", ext: "md" },
+    { name: "CONTRIBUTING.md", type: "file", size: "5.8 KB", ext: "md" },
+    { name: "context", type: "dir", children: [] },
+    { name: "dist", type: "dir", children: [] },
+    { name: "Dockerfile", type: "file", size: "390 B", ext: "docker" },
+    { name: "images", type: "dir", children: [] },
+    { name: "INSTALLATION.md", type: "file", size: "7.4 KB", ext: "md" },
+    { name: "jest.config.cjs", type: "file", size: "612 B", ext: "js" },
+    { name: "LICENSE", type: "file", size: "1.1 KB", ext: "text" },
+    { name: "manifest.json", type: "file", size: "1.1 KB", ext: "json" },
+    { name: "node_modules", type: "dir", children: [] },
+    { name: "package.json", type: "file", size: "2.4 KB", ext: "json" },
+    { name: "prompts", type: "dir", children: [] },
+    { name: "readme.md", type: "file", size: "7.1 KB", ext: "md" },
+    { name: "scripts", type: "dir", children: [] },
+    { name: "smithery.yaml", type: "file", size: "767 B", ext: "yaml" },
+    { name: "src", type: "dir", children: [] },
+    { name: "TESTING.md", type: "file", size: "5.3 KB", ext: "md" },
+    { name: "tests", type: "dir", children: [] },
+    { name: "TROUBLESHOOTING.md", type: "file", size: "4.3 KB", ext: "md" },
+    { name: "tsconfig.json", type: "file", size: "413 B", ext: "json" },
+    { name: "tsup.config.ts", type: "file", size: "312 B", ext: "ts" },
+  ]},
+  { name: "markdown-test.md", type: "file", size: "3.9 KB", ext: "md" },
+  { name: "markdown-viewer.html", type: "file", size: "22 KB", ext: "html" },
+  { name: "doc-explorer.html", type: "file", size: "~", ext: "html" },
+];
+
+// Embed file contents
+FILES["markdown-test.md"] = `# \ub9c8\ud06c\ub2e4\uc6b4 \ub80c\ub354\ub9c1 \ud14c\uc2a4\ud2b8
+
+## 1. \ud14d\uc2a4\ud2b8 \uc11c\uc2dd
+
+\uc77c\ubc18 \ud14d\uc2a4\ud2b8\uc785\ub2c8\ub2e4. **\uad75\uc740 \uae00\uc528**, *\uae30\uc6b8\uc784*, ***\uad75\uc740 \uae30\uc6b8\uc784***, ~~\ucde8\uc18c\uc120~~, \`\uc778\ub77c\uc778 \ucf54\ub4dc\`\ub97c \ud14c\uc2a4\ud2b8\ud569\ub2c8\ub2e4.
+
+> \uc778\uc6a9\ubb38\uc785\ub2c8\ub2e4. \ub9c8\ud06c\ub2e4\uc6b4\uc740 2004\ub144 John Gruber\uac00 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.
+>
+> > \uc911\ucca9\ub41c \uc778\uc6a9\ubb38\ub3c4 \uac00\ub2a5\ud569\ub2c8\ub2e4.
+
+---
+
+## 2. \ubaa9\ub85d
+
+### \uc21c\uc11c \uc5c6\ub294 \ubaa9\ub85d
+- \uc0ac\uacfc
+- \ubc14\ub098\ub098
+  - \ub178\ub780 \ubc14\ub098\ub098
+  - \ucd08\ub85d \ubc14\ub098\ub098
+- \ub538\uae30
+  - \uad6d\ub0b4\uc0b0
+    - \uc124\ud5a5
+    - \uae08\uc2e4
+
+### \uc21c\uc11c \uc788\ub294 \ubaa9\ub85d
+1. \uccab \ubc88\uc9f8 \ud56d\ubaa9
+2. \ub450 \ubc88\uc9f8 \ud56d\ubaa9
+3. \uc138 \ubc88\uc9f8 \ud56d\ubaa9
+
+### \uccb4\ud06c\ub9ac\uc2a4\ud2b8
+- [x] \uc644\ub8cc\ub41c \uc791\uc5c5
+- [x] \uc774\uac83\ub3c4 \uc644\ub8cc
+- [ ] \uc544\uc9c1 \uc548 \ud55c \uc791\uc5c5
+- [ ] \uc774\uac83\ub3c4 \ub0a8\uc74c
+
+---
+
+## 3. \ucf54\ub4dc \ube14\ub85d
+
+### JavaScript
+\\\`\\\`\\\`javascript
+function fibonacci(n) {
+  if (n <= 1) return n;
+  return fibonacci(n - 1) + fibonacci(n - 2);
+}
+
+// \ud53c\ubcf4\ub098\uce58 \uc218\uc5f4 \ucd9c\ub825
+for (let i = 0; i < 10; i++) {
+  console.log(\\\`F(\\\${i}) = \\\${fibonacci(i)}\\\`);
+}
+\\\`\\\`\\\`
+
+### Python
+\\\`\\\`\\\`python
+class DataProcessor:
+    def __init__(self, data: list[dict]):
+        self.data = data
+
+    def filter_by(self, key: str, value: any) -> list[dict]:
+        return [item for item in self.data if item.get(key) == value]
+\\\`\\\`\\\`
+
+---
+
+## 4. \ud14c\uc774\ube14
+
+| \uae30\ub2a5 | Chrome | Firefox | Safari | Edge |
+|------|:------:|:-------:|:------:|:----:|
+| CSS Grid | \u2705 | \u2705 | \u2705 | \u2705 |
+| WebGPU | \u2705 | \u26a0\ufe0f | \u274c | \u2705 |
+| Container Queries | \u2705 | \u2705 | \u2705 | \u2705 |
+
+---
+
+## 5. \ub9c1\ud06c & \uc774\ubbf8\uc9c0
+
+- [GitHub](https://github.com)
+- [MDN Web Docs](https://developer.mozilla.org)
+
+---
+
+\ub05d.`;
+
+FILES["claude-talk-to-figma-mcp/readme.md"] = document.createElement('div').textContent = '';
+// We'll load these properly below
+
+const FILE_CONTENTS = {};
+
+// Use a safer approach - store raw text in script tags
+</script>
+
+<!-- Embed file contents safely -->
+<script id="file-data" type="application/json">
+</script>
+
+<script>
+// Directly define file contents with proper escaping
+(function() {
+
+FILE_CONTENTS["markdown-test.md"] = "# \ub9c8\ud06c\ub2e4\uc6b4 \ub80c\ub354\ub9c1 \ud14c\uc2a4\ud2b8\n\n## 1. \ud14d\uc2a4\ud2b8 \uc11c\uc2dd\n\n\uc77c\ubc18 \ud14d\uc2a4\ud2b8\uc785\ub2c8\ub2e4. **\uad75\uc740 \uae00\uc528**, *\uae30\uc6b8\uc784*, ***\uad75\uc740 \uae30\uc6b8\uc784***, ~~\ucde8\uc18c\uc120~~, `\uc778\ub77c\uc778 \ucf54\ub4dc`\ub97c \ud14c\uc2a4\ud2b8\ud569\ub2c8\ub2e4.\n\n> \uc778\uc6a9\ubb38\uc785\ub2c8\ub2e4. \ub9c8\ud06c\ub2e4\uc6b4\uc740 2004\ub144 John Gruber\uac00 \ub9cc\ub4e4\uc5c8\uc2b5\ub2c8\ub2e4.\n>\n> > \uc911\ucca9\ub41c \uc778\uc6a9\ubb38\ub3c4 \uac00\ub2a5\ud569\ub2c8\ub2e4.\n\n---\n\n## 2. \ubaa9\ub85d\n\n### \uc21c\uc11c \uc5c6\ub294 \ubaa9\ub85d\n- \uc0ac\uacfc\n- \ubc14\ub098\ub098\n  - \ub178\ub780 \ubc14\ub098\ub098\n  - \ucd08\ub85d \ubc14\ub098\ub098\n- \ub538\uae30\n  - \uad6d\ub0b4\uc0b0\n    - \uc124\ud5a5\n    - \uae08\uc2e4\n\n### \uc21c\uc11c \uc788\ub294 \ubaa9\ub85d\n1. \uccab \ubc88\uc9f8 \ud56d\ubaa9\n2. \ub450 \ubc88\uc9f8 \ud56d\ubaa9\n3. \uc138 \ubc88\uc9f8 \ud56d\ubaa9\n   1. \ud558\uc704 \ud56d\ubaa9 A\n   2. \ud558\uc704 \ud56d\ubaa9 B\n\n### \uccb4\ud06c\ub9ac\uc2a4\ud2b8\n- [x] \uc644\ub8cc\ub41c \uc791\uc5c5\n- [x] \uc774\uac83\ub3c4 \uc644\ub8cc\n- [ ] \uc544\uc9c1 \uc548 \ud55c \uc791\uc5c5\n- [ ] \uc774\uac83\ub3c4 \ub0a8\uc74c\n\n---\n\n## 3. \ucf54\ub4dc \ube14\ub85d\n\n### JavaScript\n```javascript\nfunction fibonacci(n) {\n  if (n <= 1) return n;\n  return fibonacci(n - 1) + fibonacci(n - 2);\n}\n\n// \ud53c\ubcf4\ub098\uce58 \uc218\uc5f4 \ucd9c\ub825\nfor (let i = 0; i < 10; i++) {\n  console.log(`F(${i}) = ${fibonacci(i)}`);\n}\n```\n\n### Python\n```python\nclass DataProcessor:\n    def __init__(self, data: list[dict]):\n        self.data = data\n\n    def filter_by(self, key: str, value: any) -> list[dict]:\n        \"\"\"\uc870\uac74\uc5d0 \ub9de\ub294 \ub370\uc774\ud130\ub97c \ud544\ud130\ub9c1\ud569\ub2c8\ub2e4.\"\"\"\n        return [item for item in self.data if item.get(key) == value]\n\n    def summary(self) -> dict:\n        return {\n            \"total\": len(self.data),\n            \"keys\": list(self.data[0].keys()) if self.data else []\n        }\n```\n\n### Bash\n```bash\n#!/bin/bash\necho \"\ud604\uc7ac \ub514\ub809\ud1a0\ub9ac: $(pwd)\"\nfor file in *.md; do\n    echo \"\ub9c8\ud06c\ub2e4\uc6b4 \ud30c\uc77c \ubc1c\uacac: $file\"\n    wc -l \"$file\"\ndone\n```\n\n---\n\n## 4. \ud14c\uc774\ube14\n\n| \uae30\ub2a5 | Chrome | Firefox | Safari | Edge |\n|------|:------:|:-------:|:------:|:----:|\n| CSS Grid | \u2705 | \u2705 | \u2705 | \u2705 |\n| WebGPU | \u2705 | \u26a0\ufe0f | \u274c | \u2705 |\n| Container Queries | \u2705 | \u2705 | \u2705 | \u2705 |\n| View Transitions | \u2705 | \u274c | \u274c | \u2705 |\n\n### \uc815\ub82c \ud14c\uc2a4\ud2b8\n\n| \uc67c\ucabd \uc815\ub82c | \uac00\uc6b4\ub370 \uc815\ub82c | \uc624\ub978\ucabd \uc815\ub82c |\n|:-----------|:----------:|----------:|\n| AAA | BBB | CCC |\n| \uae34 \ud14d\uc2a4\ud2b8 \uc608\uc2dc | \uc911\uac04 | 12,345 |\n| Hello | World | 99.9% |\n\n---\n\n## 5. \ub9c1\ud06c & \uc774\ubbf8\uc9c0\n\n### \ub9c1\ud06c\n- [GitHub](https://github.com)\n- [MDN Web Docs](https://developer.mozilla.org)\n- \uc790\ub3d9 \ub9c1\ud06c: https://www.example.com\n\n### \uc774\ubbf8\uc9c0\n![Placeholder \uc774\ubbf8\uc9c0](https://via.placeholder.com/600x200/4A90D9/ffffff?text=Markdown+Rendering+Test)\n\n---\n\n## 6. \uc218\ud559 \ud45c\ud604 (LaTeX)\n\n\uc778\ub77c\uc778 \uc218\ud559: `E = mc\u00b2`\n\n---\n\n## 7. \uac01\uc8fc\n\n\ub9c8\ud06c\ub2e4\uc6b4\uc740 \uc77d\uae30 \uc26c\uc6b4 \ubb38\uc11c \ud615\uc2dd\uc785\ub2c8\ub2e4.\n\n---\n\n## 8. \uc774\ubaa8\uc9c0 & \ud2b9\uc218\ubb38\uc790\n\n\ud83d\ude80 \ub85c\ucf13 | \ud83c\udfaf \ud0c0\uac9f | \ud83d\udcbb \ucef4\ud4e8\ud130 | \ud83d\udcca \ucc28\ud2b8 | \u26a1 \ubc88\uac1c | \ud83d\udd25 \ubd88\uaf43\n\n---\n\n## 9. \uc811\uae30/\ud3bc\uce58\uae30\n\n<details>\n<summary>\ud074\ub9ad\ud558\uc5ec \ud3bc\uce58\uae30</summary>\n\n\uc228\uaca8\uc9c4 \ub0b4\uc6a9\uc785\ub2c8\ub2e4.\n\n```json\n{\n  \"name\": \"markdown-test\",\n  \"version\": \"1.0.0\"\n}\n```\n\n</details>\n\n---\n\n## 10. \ud558\uc774\ub77c\uc774\ud2b8 & \ud0a4\ubcf4\ub4dc\n\n\ud0a4\ubcf4\ub4dc \ub2e8\ucd95\ud0a4: <kbd>Ctrl</kbd> + <kbd>Shift</kbd> + <kbd>P</kbd>\n\n---\n\n\ub05d.";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/.gitignore"] = "node_modules/\ndist/\ndocs/\ncoverage/\n.cursor/\n\n# NPM lock file (project uses Bun as primary package manager)\npackage-lock.json\n\n# DXT packages (build artifacts - distribute via releases only)\n*.dxt\n\n# macOS system files\n.DS_Store\n.DS_Store?\n\n# Logs and temp files\n*.log\nnpm-debug.log*\nyarn-debug.log*\nyarn-error.log*\n\n# IDE and editor files\n.vscode/\n.idea/\n*.swp\n*.swo\n\n# Environment and secrets\n.env\n.env.local\n.env.development.local\n.env.test.local\n.env.production.local\n\n# Temporary build directories\ntemp-dxt/\ndxt-*/\n\n# Claude Code local settings\n.claude/";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/Dockerfile"] = "# Use the Bun image as the base image\nFROM oven/bun:latest\n\n# Set the working directory in the container\nWORKDIR /app\n\n# Copy the current directory contents into the container at /app\nCOPY package*.json ./\n\nRUN bun install\n\n# Expose the port on which the API will listen\nEXPOSE 3055\n\n# Run the server when the container launches\nCMD [\"bun\", \"src/talk_to_figma_mcp/server.ts\"]";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/tsup.config.ts"] = "import { defineConfig } from 'tsup';\n\nexport default defineConfig({\n  entry: ['src/talk_to_figma_mcp/server.ts', 'src/socket.ts'],\n  format: ['cjs', 'esm'],\n  dts: true,\n  clean: true,\n  outDir: 'dist',\n  target: 'node18',\n  sourcemap: true,\n  minify: false,\n  splitting: false,\n  bundle: true,\n});";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/smithery.yaml"] = "# Smithery configuration file: https://smithery.ai/docs/config#smitheryyaml\n\nstartCommand:\n  type: stdio\n  configSchema:\n    # JSON Schema defining the configuration options for the MCP.\n    {}\n  commandFunction:\n    # A JS function that produces the CLI command based on the given config to start the MCP on stdio.\n    |-\n    (config) => {\n      const isBunAvailable = (() => {\n        try {\n          require('child_process').execSync('bun --version', { stdio: 'ignore' });\n          return true;\n        } catch (e) {\n          return false;\n        }\n      })();\n\n      return {\n        command: isBunAvailable ? 'bunx' : 'npx',\n        args: ['claude-talk-to-figma-mcp@latest']\n      };\n    }";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/jest.config.cjs"] = "/** @type {import('jest').Config} */\nmodule.exports = {\n  preset: 'ts-jest',\n  testEnvironment: 'node',\n  roots: ['<rootDir>/tests', '<rootDir>/src'],\n  testMatch: [\n    '**/tests/**/*.test.ts',\n    '**/tests/**/*.spec.ts'\n  ],\n  transform: {\n    '^.+\\\\.tsx?$': ['ts-jest', { useESM: true }],\n  },\n  collectCoverageFrom: [\n    'src/**/*.{ts,tsx}',\n    '!src/**/*.d.ts',\n    '!src/**/index.ts'\n  ],\n  moduleNameMapper: {\n    '^@/(.*)$': '<rootDir>/src/$1',\n  },\n  setupFilesAfterEnup: ['<rootDir>/tests/setup.ts'],\n  testTimeout: 10000,\n  verbose: true,\n  extensionsToTreatAsEsm: ['.ts']\n};";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/LICENSE"] = "The MIT License (MIT)\n\nCopyright (c) 2025 Github User sonnylazuardi\nCopyright (c) 2025 Github User arinspunk (modification: Cursor to Claude)\n\nPermission is hereby granted, free of charge, to any person obtaining a copy\nof this software and associated documentation files (the \"Software\"), to deal\nin the Software without restriction, including without limitation the rights\nto use, copy, modify, merge, publish, distribute, sublicense, and/or sell\ncopies of the Software, and to permit persons to whom the Software is\nfurnished to do so, subject to the following conditions:\n\nThe above copyright notice and this permission notice shall be included in\nall copies or substantial portions of the Software.\n\nTHE SOFTWARE IS PROVIDED \"AS IS\", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR\nIMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,\nFITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE\nAUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER\nLIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,\nOUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN\nTHE SOFTWARE.";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/manifest.json"] = "{\n  \"dxt_version\": \"0.1\",\n  \"name\": \"claude-talk-to-figma-mcp\",\n  \"display_name\": \"Claude Talk to Figma\",\n  \"description\": \"A Model Context Protocol (MCP) plugin that allows Claude Desktop and other AI tools to interact directly with Figma, enabling powerful AI-assisted design capabilities.\",\n  \"version\": \"0.8.2\",\n  \"author\": {\n    \"name\": \"X\u00falio Z\u00e9\",\n    \"url\": \"https://github.com/arinspunk\"\n  },\n  \"license\": \"MIT\",\n  \"homepage\": \"https://github.com/arinspunk/claude-talk-to-figma-mcp\",\n  \"repository\": {\n    \"type\": \"git\",\n    \"url\": \"https://github.com/arinspunk/claude-talk-to-figma-mcp.git\"\n  },\n  \"icon\": \"images/claude-talk-to-figma.png\",\n  \"compatibility\": {\n    \"platforms\": [\"darwin\", \"linux\", \"win32\"]\n  },\n  \"server\": {\n    \"type\": \"node\",\n    \"entry_point\": \"dist/talk_to_figma_mcp/server.cjs\"\n  },\n  \"tools_generated\": true\n}";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/package.json"] = "{\n  \"name\": \"claude-talk-to-figma-mcp\",\n  \"description\": \"Claude Desktop Talk to Figma MCP\",\n  \"version\": \"0.8.2\",\n  \"module\": \"dist/talk_to_figma_mcp/server.js\",\n  \"main\": \"dist/talk_to_figma_mcp/server.js\",\n  \"bin\": {\n    \"claude-talk-to-figma-mcp\": \"scripts/launcher.js\",\n    \"claude-talk-to-figma-mcp-server\": \"dist/talk_to_figma_mcp/server.js\",\n    \"claude-talk-to-figma-mcp-socket\": \"dist/socket.js\"\n  },\n  \"type\": \"module\",\n  \"scripts\": {\n    \"start\": \"bun run dist/talk_to_figma_mcp/server.js\",\n    \"socket\": \"bun run dist/socket.js\",\n    \"build\": \"tsup && chmod +x dist/talk_to_figma_mcp/server.js dist/socket.js\",\n    \"build:win\": \"tsup\",\n    \"dev\": \"bun run build:watch\",\n    \"test\": \"jest\",\n    \"test:watch\": \"jest --watch\",\n    \"test:coverage\": \"jest --coverage\"\n  },\n  \"devDependencies\": {\n    \"@anthropic-ai/dxt\": \"^0.2.0\",\n    \"@types/bun\": \"latest\",\n    \"@types/jest\": \"^29.5.12\",\n    \"jest\": \"^29.7.0\",\n    \"ts-jest\": \"^29.1.2\",\n    \"tsup\": \"^8.4.0\",\n    \"typescript\": \"^5.8.3\"\n  },\n  \"dependencies\": {\n    \"@modelcontextprotocol/sdk\": \"latest\",\n    \"uuid\": \"latest\",\n    \"ws\": \"latest\",\n    \"zod\": \"latest\"\n  },\n  \"author\": \"X\u00falio Z\u00e9\",\n  \"license\": \"MIT\"\n}";
+
+FILE_CONTENTS["claude-talk-to-figma-mcp/tsconfig.json"] = "{\n  \"compilerOptions\": {\n    \"target\": \"ES2022\",\n    \"module\": \"ESNext\",\n    \"moduleResolution\": \"bundler\",\n    \"esModuleInterop\": true,\n    \"strict\": true,\n    \"skipLibCheck\": true,\n    \"declaration\": true,\n    \"outDir\": \"dist\",\n    \"rootDir\": \"src\",\n    \"lib\": [\"ES2022\"],\n    \"types\": [\"bun-types\", \"jest\"]\n  },\n  \"include\": [\"src/**/*\", \"tests/**/*\"],\n  \"exclude\": [\"node_modules\", \"dist\"]\n}";
+
+// Markdown files - stored via DOM to avoid escaping issues
+const mdFiles = {
+  "claude-talk-to-figma-mcp/readme.md": null,
+  "claude-talk-to-figma-mcp/CHANGELOG.md": null,
+  "claude-talk-to-figma-mcp/COMMANDS.md": null,
+  "claude-talk-to-figma-mcp/CONTRIBUTING.md": null,
+  "claude-talk-to-figma-mcp/INSTALLATION.md": null,
+  "claude-talk-to-figma-mcp/TESTING.md": null,
+  "claude-talk-to-figma-mcp/TROUBLESHOOTING.md": null,
+};
+})();
+
+// ─── MARKDOWN RENDERER ────────────────────────────────
+function escHtml(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function renderMd(src) {
+  const lines = src.split('\n');
+  let html = '';
+  let i = 0;
+  let inList = null;
+
+  function closeList() {
+    if (inList) { html += inList === 'ul' ? '</ul>' : '</ol>'; inList = null; }
+  }
+
+  function inline(t) {
+    t = t.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, '<img src="$2" alt="$1" loading="lazy">');
+    t = t.replace(/\[([^\]]+)\]\(([^)]+)\)/g, '<a href="$2" target="_blank">$1</a>');
+    t = t.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
+    t = t.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+    t = t.replace(/\*(.+?)\*/g, '<em>$1</em>');
+    t = t.replace(/~~(.+?)~~/g, '<del>$1</del>');
+    t = t.replace(/<del>([^<]+)<\/del>/g, '<del>$1</del>');
+    t = t.replace(/<ins>([^<]+)<\/ins>/g, '<ins>$1</ins>');
+    t = t.replace(/`([^`]+)`/g, '<code>$1</code>');
+    return t;
+  }
+
+  while (i < lines.length) {
+    let line = lines[i];
+
+    // Code block
+    if (line.match(/^```(\w*)/)) {
+      closeList();
+      let lang = line.match(/^```(\w*)/)[1] || '';
+      let code = [];
+      i++;
+      while (i < lines.length && !lines[i].startsWith('```')) { code.push(lines[i]); i++; }
+      i++;
+      html += `<pre${lang ? ` data-lang="${lang}"` : ''}><code>${escHtml(code.join('\n'))}</code></pre>`;
+      continue;
+    }
+
+    // Heading
+    let hm = line.match(/^(#{1,6})\s+(.+)/);
+    if (hm) { closeList(); html += `<h${hm[1].length}>${inline(hm[2])}</h${hm[1].length}>`; i++; continue; }
+
+    // HR
+    if (line.match(/^(\*{3,}|-{3,}|_{3,})\s*$/)) { closeList(); html += '<hr>'; i++; continue; }
+
+    // Table
+    if (line.includes('|') && i+1 < lines.length && lines[i+1].match(/^\|?\s*:?-+/)) {
+      closeList();
+      let hdrs = line.split('|').filter(c => c.trim()).map(c => c.trim());
+      let aligns = lines[i+1].split('|').filter(c => c.trim()).map(c => {
+        c = c.trim();
+        if (c.startsWith(':') && c.endsWith(':')) return 'center';
+        if (c.endsWith(':')) return 'right';
+        return 'left';
+      });
+      html += '<table><thead><tr>';
+      hdrs.forEach((h,j) => { html += `<th style="text-align:${aligns[j]||'left'}">${inline(h)}</th>`; });
+      html += '</tr></thead><tbody>';
+      i += 2;
+      while (i < lines.length && lines[i].includes('|') && !lines[i].match(/^(\*{3,}|-{3,})/)) {
+        let cells = lines[i].split('|').filter(c => c.trim()).map(c => c.trim());
+        html += '<tr>';
+        cells.forEach((c,j) => { html += `<td style="text-align:${aligns[j]||'left'}">${inline(c)}</td>`; });
+        html += '</tr>';
+        i++;
+      }
+      html += '</tbody></table>';
+      continue;
+    }
+
+    // Blockquote
+    if (line.match(/^>\s?/)) {
+      closeList();
+      let qlines = [];
+      while (i < lines.length && (lines[i].match(/^>\s?/) || (lines[i].trim()==='' && lines[i+1]?.match(/^>/)))) {
+        qlines.push(lines[i].replace(/^>\s?/, '')); i++;
+      }
+      html += `<blockquote>${renderMd(qlines.join('\n'))}</blockquote>`;
+      continue;
+    }
+
+    // Checklist
+    let ck = line.match(/^[-*]\s+\[([ xX])\]\s+(.+)/);
+    if (ck) {
+      if (!inList) { html += '<ul>'; inList = 'ul'; }
+      let checked = ck[1] !== ' ' ? ' checked disabled' : ' disabled';
+      html += `<li class="task-item"><input type="checkbox"${checked}>${inline(ck[2])}</li>`;
+      i++; continue;
+    }
+
+    // Unordered list
+    let ulm = line.match(/^(\s*)[-*+]\s+(.+)/);
+    if (ulm) {
+      if (inList !== 'ul') { closeList(); html += '<ul>'; inList = 'ul'; }
+      html += `<li>${inline(ulm[2])}</li>`;
+      i++; continue;
+    }
+
+    // Ordered list
+    let olm = line.match(/^(\s*)\d+\.\s+(.+)/);
+    if (olm) {
+      if (inList !== 'ol') { closeList(); html += '<ol>'; inList = 'ol'; }
+      html += `<li>${inline(olm[2])}</li>`;
+      i++; continue;
+    }
+
+    // HTML pass-through (details, summary, kbd, etc.)
+    if (line.match(/^<(details|summary|\/details|\/summary|kbd)/i)) {
+      closeList(); html += line; i++; continue;
+    }
+
+    // Empty
+    if (line.trim() === '') { closeList(); i++; continue; }
+
+    // Paragraph
+    closeList();
+    let plines = [line]; i++;
+    while (i < lines.length && lines[i].trim() !== '' && !lines[i].match(/^[#>|\-*\d`<]/) && !lines[i].match(/^\|/)) {
+      plines.push(lines[i]); i++;
+    }
+    html += `<p>${inline(plines.join(' '))}</p>`;
+  }
+  closeList();
+  return html;
+}
+
+// ─── RAW TEXT RENDERER ────────────────────────────────
+function renderRaw(content, ext) {
+  const lines = content.split('\n');
+  return lines.map((line, idx) => {
+    let escaped = escHtml(line);
+    // Basic syntax highlighting
+    if (['js','ts','cjs'].includes(ext)) {
+      escaped = escaped.replace(/\b(import|export|from|const|let|var|function|return|if|else|class|new|default|true|false|null|undefined)\b/g, '<span class="tok-kw">$1</span>');
+      escaped = escaped.replace(/(\/\/.*$)/g, '<span class="tok-cm">$1</span>');
+      escaped = escaped.replace(/(&quot;[^&]*&quot;|&#39;[^&]*&#39;)/g, '<span class="tok-str">$1</span>');
+    }
+    if (ext === 'json') {
+      escaped = escaped.replace(/(&quot;[^&]*&quot;)\s*:/g, '<span class="tok-key">$1</span>:');
+      escaped = escaped.replace(/:(\s*)(&quot;[^&]*&quot;)/g, ':$1<span class="tok-str">$2</span>');
+      escaped = escaped.replace(/:\s*(\d+)/g, ': <span class="tok-num">$1</span>');
+      escaped = escaped.replace(/\b(true|false|null)\b/g, '<span class="tok-kw">$1</span>');
+    }
+    if (ext === 'yaml') {
+      escaped = escaped.replace(/^(\s*\w[\w-]*):/gm, '<span class="tok-key">$1</span>:');
+      escaped = escaped.replace(/(#.*$)/g, '<span class="tok-cm">$1</span>');
+    }
+    if (ext === 'docker') {
+      escaped = escaped.replace(/^(FROM|RUN|COPY|WORKDIR|EXPOSE|CMD|ENV|ARG|ENTRYPOINT)\b/g, '<span class="tok-kw">$1</span>');
+      escaped = escaped.replace(/(#.*$)/g, '<span class="tok-cm">$1</span>');
+    }
+    return `<div class="raw-line"><span class="line-num">${idx+1}</span><span class="line-content">${escaped || ' '}</span></div>`;
+  }).join('');
+}
+
+// ─── FILE EXTENSION HELPERS ───────────────────────────
+function getIcon(item) {
+  if (item.type === 'dir') return '\ud83d\udcc1';
+  const ext = item.ext || '';
+  const map = { md: '\ud83d\udcd8', json: '\ud83d\udce6', ts: '\ud83d\udd37', js: '\ud83d\udfe1', yaml: '\u2699\ufe0f', docker: '\ud83d\udc33', html: '\ud83c\udf10', text: '\ud83d\udcc4', lock: '\ud83d\udd12' };
+  return map[ext] || '\ud83d\udcc4';
+}
+
+function getBadgeColor(ext) {
+  const map = { md: 'var(--badge-md)', json: 'var(--badge-json)', ts: 'var(--badge-ts)', js: 'var(--badge-js)', yaml: 'var(--badge-yaml)', docker: 'var(--badge-docker)' };
+  return map[ext] || 'var(--badge-text)';
+}
+
+function isViewable(item) {
+  return item.type === 'file' && ['md','json','ts','js','cjs','yaml','docker','text','html','lock'].includes(item.ext);
+}
+
+function getExtFromName(name) {
+  if (name === 'Dockerfile') return 'docker';
+  if (name === 'LICENSE') return 'text';
+  const m = name.match(/\.(\w+)$/);
+  return m ? m[1] : '';
+}
+
+// ─── STATE ────────────────────────────────────────────
+const state = {
+  selectedFile: null,
+  openTabs: [],
+  activeTab: null,
+};
+
+// ─── RENDER FILE TREE ─────────────────────────────────
+function renderTree(items, parentPath, depth, filter) {
+  let html = '';
+  for (const item of items) {
+    const path = parentPath ? `${parentPath}/${item.name}` : item.name;
+    if (filter && !item.name.toLowerCase().includes(filter.toLowerCase()) && item.type !== 'dir') continue;
+
+    const indents = Array(depth).fill('<span class="tree-indent"></span>').join('');
+    const icon = getIcon(item);
+    const isDir = item.type === 'dir';
+    const isSelected = state.selectedFile === path;
+    const viewable = isViewable(item);
+    const badgeColor = getBadgeColor(item.ext);
+    const ext = item.ext || '';
+
+    html += `<div class="tree-item${isDir ? ' dir' : ''}${isSelected ? ' selected' : ''}"
+      onclick="${isDir ? '' : `selectFile('${path.replace(/'/g,"\\'")}','${ext}')`}"
+      title="${path}">
+      ${indents}
+      <span class="icon">${icon}</span>
+      <span class="name">${item.name}</span>
+      ${ext && !isDir ? `<span class="badge" style="color:${badgeColor};border:1px solid ${badgeColor}30">${ext}</span>` : ''}
+      ${item.size ? `<span class="size">${item.size}</span>` : ''}
+    </div>`;
+
+    if (isDir && item.children) {
+      html += renderTree(item.children, path, depth + 1, filter);
+    }
+  }
+  return html;
+}
+
+function refreshTree(filter) {
+  document.getElementById('file-tree').innerHTML = renderTree(TREE, '', 0, filter);
+}
+
+function filterTree(val) { refreshTree(val); }
+
+// ─── TABS & CONTENT ──────────────────────────────────
+function selectFile(path, ext) {
+  state.selectedFile = path;
+
+  if (!state.openTabs.includes(path)) {
+    state.openTabs.push(path);
+  }
+  state.activeTab = path;
+
+  refreshTree('');
+  renderTabs();
+  renderContent(path, ext);
+  updatePrompt(path, ext);
+}
+
+function closeTab(path, e) {
+  e.stopPropagation();
+  state.openTabs = state.openTabs.filter(t => t !== path);
+  if (state.activeTab === path) {
+    state.activeTab = state.openTabs[state.openTabs.length - 1] || null;
+    state.selectedFile = state.activeTab;
+  }
+  renderTabs();
+  if (state.activeTab) {
+    const ext = getExtFromName(state.activeTab.split('/').pop());
+    renderContent(state.activeTab, ext);
+    updatePrompt(state.activeTab, ext);
+  } else {
+    showWelcome();
+  }
+  refreshTree('');
+}
+
+function switchTab(path) {
+  state.activeTab = path;
+  state.selectedFile = path;
+  const ext = getExtFromName(path.split('/').pop());
+  renderTabs();
+  renderContent(path, ext);
+  updatePrompt(path, ext);
+  refreshTree('');
+}
+
+function renderTabs() {
+  const el = document.getElementById('tabs');
+  if (state.openTabs.length === 0) { el.innerHTML = ''; return; }
+  el.innerHTML = state.openTabs.map(path => {
+    const name = path.split('/').pop();
+    const active = path === state.activeTab;
+    return `<div class="tab${active ? ' active' : ''}" onclick="switchTab('${path.replace(/'/g,"\\'")}')">
+      <span>${name}</span>
+      <span class="close" onclick="closeTab('${path.replace(/'/g,"\\'")}', event)">\u2715</span>
+    </div>`;
+  }).join('');
+}
+
+function renderContent(path, ext) {
+  const body = document.getElementById('content-body');
+  const content = FILE_CONTENTS[path];
+
+  if (!content) {
+    body.innerHTML = `<div class="welcome">
+      <div class="icon-large">\ud83d\udcad</div>
+      <h2>Preview unavailable</h2>
+      <p>${path}</p>
+      <p style="font-size:12px;margin-top:4px">This file's content is not embedded in this explorer.</p>
+    </div>`;
+    return;
+  }
+
+  if (ext === 'md') {
+    body.innerHTML = `<div class="md-rendered">${renderMd(content)}</div>`;
+  } else {
+    body.innerHTML = `<div class="raw-view">${renderRaw(content, ext)}</div>`;
+  }
+  body.scrollTop = 0;
+}
+
+function showWelcome() {
+  document.getElementById('content-body').innerHTML = `
+    <div class="welcome">
+      <div class="icon-large">\ud83d\udcc4</div>
+      <h2>Document Explorer</h2>
+      <p>Click a file to view its contents. Markdown files render automatically.</p>
+      <div class="keys">
+        <kbd>.md</kbd> <kbd>.txt</kbd> <kbd>.json</kbd> <kbd>.ts</kbd> <kbd>.js</kbd> <kbd>.yaml</kbd>
+      </div>
+    </div>`;
+  document.getElementById('prompt-text').textContent = 'Select a file to generate a contextual prompt.';
+}
+
+// ─── PROMPT ───────────────────────────────────────────
+function updatePrompt(path, ext) {
+  const parts = [];
+  const fileName = path.split('/').pop();
+
+  if (ext === 'md') {
+    parts.push(`Read and analyze the markdown file "${path}".`);
+    const content = FILE_CONTENTS[path];
+    if (content) {
+      const headings = (content.match(/^#{1,3}\s+.+/gm) || []).length;
+      const tables = (content.match(/^\|/gm) || []).length;
+      const codeBlocks = (content.match(/^```/gm) || []).length / 2;
+      if (headings) parts.push(`It has ${headings} sections`);
+      if (tables) parts.push(`${Math.ceil(tables/3)} tables`);
+      if (codeBlocks > 0) parts.push(`${Math.floor(codeBlocks)} code blocks`);
+    }
+  } else if (ext === 'json') {
+    parts.push(`Review the JSON configuration in "${path}".`);
+  } else if (['ts','js','cjs'].includes(ext)) {
+    parts.push(`Analyze the ${ext.toUpperCase()} source file "${path}".`);
+  } else {
+    parts.push(`Review the file "${path}" (${ext || 'text'}).`);
+  }
+
+  document.getElementById('prompt-text').textContent = parts.join(' ');
+}
+
+function copyPrompt() {
+  const text = document.getElementById('prompt-text').textContent;
+  navigator.clipboard.writeText(text).then(() => {
+    const btn = document.getElementById('copy-btn');
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(() => { btn.textContent = 'Copy'; btn.classList.remove('copied'); }, 1500);
+  });
+}
+
+// ─── INIT ─────────────────────────────────────────────
+function countItems(items) {
+  let files = 0, dirs = 0, viewable = 0;
+  for (const item of items) {
+    if (item.type === 'dir') { dirs++; if (item.children) { const c = countItems(item.children); files += c.files; dirs += c.dirs; viewable += c.viewable; } }
+    else { files++; if (isViewable(item)) viewable++; }
+  }
+  return { files, dirs, viewable };
+}
+
+(function init() {
+  const counts = countItems(TREE);
+  document.getElementById('stat-files').textContent = counts.files;
+  document.getElementById('stat-dirs').textContent = counts.dirs;
+  document.getElementById('stat-md').textContent = counts.viewable;
+
+  refreshTree('');
+
+  // Load markdown files from embedded script elements
+  document.querySelectorAll('script[data-file]').forEach(el => {
+    FILE_CONTENTS[el.dataset.file] = el.textContent;
+  });
+})();
+</script>
+
+<!-- Embed large markdown files in safe script tags -->
+<script data-file="claude-talk-to-figma-mcp/readme.md" type="text/plain">
+![Claude Talk to Figma collage](images/claude-talk-to-figma.png)
+
+# <del>Claude</del> <ins>AI Agents</ins> Talk to Figma MCP
+
+Enable your AI agents to read, analyze, and modify Figma designs.
+
+Works with your favorite agentic tools:
+
+- [Claude Desktop](https://claude.ai/)
+- [Claude Code](https://docs.anthropic.com/en/docs/claude-code)
+- [Cursor](https://cursor.com/)
+- [Antigravity](https://antigravity.google/)
+- [Windsurf](https://windsurf.com/)
+- [VS Code](https://code.visualstudio.com/) + [GitHub Copilot](https://github.com/features/copilot)
+- [Cline](https://marketplace.visualstudio.com/items?itemName=saoudrizwan.claude-dev)
+- [Roo Code](https://marketplace.visualstudio.com/items?itemName=RooVeterinaryInc.roo-cline)
+
+## Who it's for
+
+### UX/UI Teams
+
+Automate repetitive design tasks and maintain brand consistency without manual effort:
+
+- **Automated accessibility audits** - Detect and fix contrast issues in seconds
+- **Bulk style updates** - Change colors, typography, or spacing across the entire document with a single command
+- **Visual hierarchy analysis** - Get instant feedback on your design structure
+
+### Developers
+
+Generate production-ready code directly from designs:
+
+- **React/Vue/SwiftUI components** - From design to code in one step
+- **Code with design tokens** - Keep design and development in sync
+- **Reduce handoff friction** - Fewer back-and-forth iterations with the design team
+
+> **Key advantage**: Unlike Figma's official MCP which requires a Dev Mode license, this MCP **works with any Figma account** (even free ones).
+
+## Real-world use cases
+
+**Accessibility:**
+> "Find all text with contrast ratio <4.5:1 and suggest colors that meet WCAG AA"
+
+**Rebranding:**
+> "Change #FF6B6B to #E63946 in all primary buttons throughout the document"
+
+**Design analysis:**
+> "Analyze the visual hierarchy of this screen and suggest improvements based on design principles"
+
+**Developer handoff:**
+> "Generate the React component for 'CardProduct' including PropTypes and styles in CSS modules"
+
+## Quick installation
+
+**Setup:** 5 minutes | **First automation:** 2 minutes
+
+### Requirements
+
+- [Node.js](https://nodejs.org/en/download) installed
+- [Figma Desktop](https://www.figma.com/downloads/)
+- AI client of your choice
+
+### Step 1: Install and start the websocket
+
+```bash
+npx claude-talk-to-figma-mcp
+```
+
+### Step 2: Install the plugin in Figma
+
+In Figma Desktop go to Menu > Plugins > Development > Import plugin from manifest > select `src/claude_mcp_plugin/manifest.json`
+
+### Step 3: Configure your Agentic Tool
+
+See detailed instructions for Claude Desktop, Cursor, and other tools in the [installation guide](INSTALLATION.md).
+
+### Step 4: Start working
+
+1. Open the plugin in Figma
+2. Copy the channel ID
+3. Type in the chat: `Connect to Figma, channel {your-ID}`
+
+Ready to design with AI!
+
+## Capabilities
+
+**Design analysis**
+- Get document information, current selection, styles
+- Scan text, audit components, export assets
+
+**Element creation**
+- Shapes, text, frames with full style control
+- Clone, group, organize elements
+
+**Modification**
+- Colors, borders, corners, shadows
+- Auto-layout, advanced typography
+- Local components and team library components
+
+See [complete command list](COMMANDS.md).
+
+## Documentation
+
+- [Detailed installation](INSTALLATION.md)
+- [Available commands](COMMANDS.md)
+- [Troubleshooting](TROUBLESHOOTING.md)
+- [Contributing](CONTRIBUTING.md)
+- [Changelog](CHANGELOG.md)
+
+## Credits
+
+Based on [cursor-talk-to-figma-mcp](https://github.com/sonnylazuardi/cursor-talk-to-figma-mcp) by Sonny Lazuardi. Adapted for Claude Desktop and extended by [Xulio Ze](https://github.com/arinspunk).
+
+[MIT License](LICENSE)
+
+---
+
+## Project status
+
+**Stable production** - Tool ready for daily use
+
+**Under active development:**
+- Complete support for Figma Variables
+- Enhanced export to Tailwind CSS/SwiftUI
+</script>
+
+<script data-file="claude-talk-to-figma-mcp/CHANGELOG.md" type="text/plain">
+# Changelog
+
+All notable changes to this project will be documented in this file.
+
+## [0.8.2] - 2026-02-15
+
+### Added
+- **Component Variants**: New `set_instance_variant` tool to change variant properties without recreating the instance.
+- **Custom Installation Path**: The launcher now supports an optional second argument to specify a custom installation directory.
+- **Korean Localization**: Added UX/UI specialist prompt in Korean.
+
+### Fixed
+- **Channel Reliability**: Added verification via ping when joining a channel to prevent false success messages.
+- **Channel Verification**: Fixed `join_channel` accepting invalid channel codes.
+
+## [0.8.1] - 2026-02-11
+
+### Added
+- **Selection Colors**: New `set_selection_colors` tool to recursively change colors of all vector nodes within the current selection.
+- **Enhanced Text Alignment**: Added full support for horizontal and vertical text alignment.
+- **RTL Support**: Improved text alignment handling for Right-to-Left languages.
+
+### Fixed
+- **Setup Command**: Fixed incorrect MCP server command causing connection failures.
+- **Type Safety**: Added missing `set_selection_colors` to `FigmaCommand` union type.
+
+## [0.8.0] - 2026-02-01
+
+### Added
+- **Unified Launcher**: New `npx claude-talk-to-figma-mcp` command.
+- **Smart Bootstrapping**: Automated Bun detection and installation prompts.
+
+### Fixed
+- **Type Safety**: Updated `FigmaCommand` union types.
+- **CI/CD Permissions**: Fixed 403 errors in GitHub Actions.
+
+## [0.7.0] - 2026-01-31
+
+### Added
+- **Text Styles**: New `set_text_style_id` tool.
+- **Rename Node**: New `rename_node` tool.
+- **Page Management**: Suite of tools: `create_page`, `delete_page`, `rename_page`, `get_pages`, `set_current_page`.
+
+### Fixed
+- **Performance**: Optimized component lookup using `findAllWithCriteria`.
+- **SVG Export**: Corrected format parameter handling.
+- **Validation**: Improved Zod validation for `join_channel`.
+
+## [0.6.1] - 2025-08-02
+
+### Fixed
+- **set_stroke_color**: Corrected validation for `strokeWeight` of `0`.
+
+## [0.6.0] - 2025-07-15
+
+### Added
+- **DXT Package Support**: Complete Anthropic Desktop Extensions format implementation.
+- **Automated CI/CD Pipeline**: GitHub Actions workflow for DXT packages.
+
+## [0.5.0] - 2025-05-28
+
+### Changed
+- Modular tool structure for better maintainability.
+- Enhanced error handling and recovery.
+
+## [0.4.0] - 2025-04-15
+
+### Added
+- New tools for creating advanced shapes (ellipse, polygon, star, vector, line).
+- Advanced text and font manipulation capabilities.
+- Support for team library components.
+
+## [0.3.0] - 2025-03-10
+
+### Added
+- `set_auto_layout` command for auto layout properties.
+
+## [0.2.0] - 2025-02-01
+
+### Added
+- Initial public release with Claude Desktop support.
+</script>
+
+<script data-file="claude-talk-to-figma-mcp/COMMANDS.md" type="text/plain">
+# Available commands
+
+Complete reference of the tools Claude can use to interact with Figma.
+
+## Document and page tools
+
+| Command | Purpose | Usage example |
+|---------|---------|---------------|
+| `get_document_info` | Document analysis | Get project overview |
+| `get_selection` | Current selection | What is currently selected |
+| `get_node_info` | Element details | Inspect a specific component |
+| `get_nodes_info` | Multiple elements info | Batch inspection |
+| `scan_text_nodes` | Find all text nodes | Text audit and update |
+| `get_styles` | Document styles | Color and text style audit |
+| `join_channel` | Connect to Figma | Establish communication |
+| `export_node_as_image` | Export assets | Generate design assets |
+| `get_pages` | List pages | View all document pages |
+| `create_page` | Create page | Add a new page |
+| `delete_page` | Delete page | Remove a page |
+| `rename_page` | Rename page | Change a page's name |
+| `set_current_page` | Switch page | Go to a specific page |
+
+## Creation tools
+
+| Command | Purpose | Usage example |
+|---------|---------|---------------|
+| `create_rectangle` | Basic shapes | Buttons, backgrounds |
+| `create_frame` | Layout containers | Page sections, cards |
+| `create_text` | Text elements | Headings, labels |
+| `create_ellipse` | Circles/ovals | Profile pictures, icons |
+| `create_polygon` | Polygon shapes | Custom geometric elements |
+| `create_star` | Stars | Decorative elements |
+| `clone_node` | Duplicate elements | Copy existing designs |
+| `group_nodes` | Organize elements | Component grouping |
+| `flatten_node` | Vector operations | Boolean operations |
+
+## Modification tools
+
+| Command | Purpose | Usage example |
+|---------|---------|---------------|
+| `set_fill_color` | Element colors | Apply brand colors |
+| `set_stroke_color` | Border colors | Outline styles |
+| `set_selection_colors` | Bulk recolor | Recolor icons |
+| `move_node` | Positioning | Layout adjustments |
+| `resize_node` | Size changes | Responsive scaling |
+| `rename_node` | Rename node | Organize layers |
+| `delete_node` | Delete elements | Clean up designs |
+| `set_corner_radius` | Rounded corners | Modern UI styles |
+| `set_auto_layout` | Flexbox layout | Component spacing |
+| `set_effects` | Shadows/blurs | Visual finishing |
+
+## Text tools
+
+| Command | Purpose | Usage example |
+|---------|---------|---------------|
+| `set_text_content` | Update text | Copy changes |
+| `set_multiple_text_contents` | Batch update | Multi-element editing |
+| `set_font_name` | Typography | Apply brand font |
+| `set_font_size` | Text size | Create hierarchy |
+| `set_font_weight` | Text weight | Bold/light variations |
+| `set_text_style_id` | Apply text style | Use corporate typography |
+| `set_letter_spacing` | Character spacing | Typography fine-tuning |
+| `set_line_height` | Vertical spacing | Text readability |
+| `set_text_case` | Case transformation | UPPERCASE/lowercase |
+| `set_text_decoration` | Text styles | Underline/strikethrough |
+
+## Component tools
+
+| Command | Purpose | Usage example |
+|---------|---------|---------------|
+| `get_local_components` | Project components | Design system audit |
+| `get_remote_components` | Team libraries | Access shared components |
+| `create_component_instance` | Use components | Consistent UI elements |
+| `set_instance_variant` | Change variant | Switch button states |
+
+## Usage tips
+
+1. **Be specific:** The more detailed the instruction, the better the result
+2. **Use references:** "Like the button in the previous section" helps maintain consistency
+3. **Break down complex tasks:** It's better to make several small changes than one very large one
+</script>
+
+<script data-file="claude-talk-to-figma-mcp/CONTRIBUTING.md" type="text/plain">
+# Contributing
+
+Thank you for your interest in contributing to Claude Talk to Figma MCP.
+
+## Architecture
+
+```
++----------------+     +-------+     +---------------+     +---------------+
+|                |     |       |     |               |     |               |
+| Claude Desktop |<--->|  MCP  |<--->| WebSocket Srv |<--->| Figma Plugin  |
+|   (AI Agent)   |     |       |     |  (Port 3055)  |     |  (UI Plugin)  |
+|                |     |       |     |               |     |               |
++----------------+     +-------+     +---------------+     +---------------+
+```
+
+### Design principles
+
+- **MCP Server:** Business logic, validation, default values
+- **WebSocket Server:** Message routing and protocol translation
+- **Figma Plugin:** Pure command executor within the Figma context
+
+## Project structure
+
+```
+src/
+  talk_to_figma_mcp/        # MCP server implementation
+    server.ts               # Main entry point
+    tools/                  # Tool categories
+      document-tools.ts
+      creation-tools.ts
+      modification-tools.ts
+      text-tools.ts
+    utils/                  # Shared utilities
+    types/                  # TypeScript definitions
+  claude_mcp_plugin/        # Figma plugin
+    code.js                 # Plugin implementation
+    manifest.json           # Plugin configuration
+```
+
+## Environment setup
+
+```bash
+git clone https://github.com/arinspunk/claude-talk-to-figma-mcp.git
+cd claude-talk-to-figma-mcp
+bun install
+```
+
+Build:
+- **macOS/Linux:** `bun run build`
+- **Windows:** `bun run build:win`
+
+## Testing
+
+```bash
+bun run test            # Run all tests
+bun run test:watch      # Watch mode
+bun run test:coverage   # Coverage report
+```
+
+## Contribution guide
+
+### 1. Fork and branch
+```bash
+git checkout -b feature/my-new-feature
+```
+
+### 2. Code standards
+- Follow existing TypeScript patterns
+- Add types for all public functions
+- Use descriptive names in English
+
+### 3. Pull Request
+- Clear description of changes
+- Reference to related issues
+- Screenshots if there are visual changes
+
+## Contributors
+
+- **sometimesdante** - Full instruction copy on channel click
+- **ehs208** - Configuration script, Korean localization, channel verification
+- **mmabas77** - Text alignment support, RTL languages, `set_selection_colors`
+- **Rob Dearborn** - Component optimization, `set_text_style_id`
+- **sk (kovalevsky)** - Page management tools, SVG export fix
+- **Beomsu Koh** - `rename_node` tool
+- **Timur** - Zod validation improvements
+- **Taylor Smits** - DXT package support, CI/CD workflows
+- **easyhak** - Windows script compatibility
+
+## License
+
+[MIT License](LICENSE)
+</script>
+
+<script data-file="claude-talk-to-figma-mcp/INSTALLATION.md" type="text/plain">
+# Detailed installation
+
+This guide covers all installation and configuration methods for different Agentic Tools.
+
+## Prerequisites
+
+- [Node.js](https://nodejs.org/en/download)
+- [Figma Desktop](https://www.figma.com/downloads/)
+- Agentic Tool (Claude Desktop, Claude Code, Cursor, Windsurf, VS Code, Cline, Roo Code)
+
+---
+
+## 1. Start the WebSocket Server (Required)
+
+```bash
+npx claude-talk-to-figma-mcp
+```
+
+This single command will:
+1. Clone the repository
+2. Install optimized dependencies (Bun)
+3. Start the socket server automatically
+
+*Verify the server at: `http://localhost:3055/status`*
+
+---
+
+## 2. Setup Figma Plugin
+
+1. In Figma Desktop: **Menu > Plugins > Development > Import plugin from manifest...**
+2. Navigate to the folder where you ran the command in Step 1
+3. Select `src/claude_mcp_plugin/manifest.json`
+
+---
+
+## 3. Configure your Agentic Tool
+
+### Claude Desktop
+
+#### Option A: DXT Package (easiest)
+Download `claude-talk-to-figma-mcp.dxt` from releases and double-click.
+
+#### Option B: JSON Configuration
+```json
+{
+  "mcpServers": {
+    "ClaudeTalkToFigma": {
+      "command": "npx",
+      "args": ["-p", "claude-talk-to-figma-mcp@latest", "claude-talk-to-figma-mcp-server"]
+    }
+  }
+}
+```
+
+### Claude Code
+
+```bash
+claude mcp add ClaudeTalkToFigma -- npx -p claude-talk-to-figma-mcp@latest claude-talk-to-figma-mcp-server
+```
+
+### Cursor
+
+Add to `mcp.json`:
+```json
+{
+  "mcpServers": {
+    "ClaudeTalkToFigma": {
+      "command": "npx",
+      "args": ["-p", "claude-talk-to-figma-mcp@latest", "claude-talk-to-figma-mcp-server"]
+    }
+  }
+}
+```
+
+### Windsurf, VS Code, Cline, Roo Code
+
+Similar JSON configuration - see tool-specific settings locations in the full documentation.
+</script>
+
+<script data-file="claude-talk-to-figma-mcp/TESTING.md" type="text/plain">
+# Testing Guide
+
+This document provides a detailed guide for testing the project.
+
+## Testing Approaches
+
+1. **Automated Tests**: Unit and component integration tests using Jest
+2. **Manual Integration Tests**: End-to-end tests for the complete workflow
+
+## Running Automated Tests
+
+```bash
+bun run test             # Run all automated tests
+bun run test:watch       # Watch mode
+bun run test:coverage    # Coverage report
+```
+
+## Test Categories
+
+1. **Unit Tests** (`tests/unit/utils/`):
+   - Test individual functions and utilities in isolation
+   - Example: `defaults.test.ts`
+
+2. **Integration Tests** (`tests/integration/`):
+   - Test interactions between multiple components
+   - Example: `set-fill-color.test.ts`
+
+## Manual Integration Tests
+
+```bash
+bun run test:integration
+```
+
+This script guides you step by step to test the complete flow.
+
+## Test Cases
+
+### Environment Setup
+
+| Test case | Steps | Expected result |
+|-----------|-------|-----------------|
+| Dependencies installation | Run `bun install` | No errors |
+| Claude configuration | Double click `.dxt` | Auto-configured |
+
+### WebSocket Server
+
+| Test case | Steps | Expected result |
+|-----------|-------|-----------------|
+| Start server | Run `npx claude-talk-to-figma-mcp` | Port 3055 running |
+| Verify status | Access `/status` | JSON with "running" status |
+
+### Figma Plugin
+
+1. Import plugin from manifest
+2. Copy Channel ID
+3. Connect from Claude
+
+## Comprehensive Testing Checklist
+
+- [ ] Configuration completed
+- [ ] WebSocket server running
+- [ ] Figma plugin connected
+- [ ] Claude can get document info
+- [ ] Claude can create/modify elements
+- [ ] Automated tests pass (`bun run test`)
+</script>
+
+<script data-file="claude-talk-to-figma-mcp/TROUBLESHOOTING.md" type="text/plain">
+# Troubleshooting
+
+Guide to resolving the most common errors.
+
+## Connection issues
+
+### "Cannot connect to WebSocket"
+**Cause:** The server is not running.
+**Solution:**
+1. Open a terminal
+2. Run `npx claude-talk-to-figma-mcp`
+3. Verify at `http://localhost:3055/status`
+
+### "Plugin not found"
+**Cause:** Plugin not correctly imported in Figma.
+**Solution:**
+1. In Figma: Menu > Plugins > Development > Import plugin from manifest
+2. Select `manifest.json` from `src/claude_mcp_plugin/`
+
+### "MCP not available"
+Restart Claude Desktop / Cursor after configuration changes.
+
+## Execution issues
+
+### "Command failed"
+- Open Figma development console
+- Check error messages
+- Verify editing permissions
+
+### "Font not found"
+- Use `load_font_async` to check availability
+- Use an available alternative font
+
+### "Timeout error"
+- Try again
+- Break the operation into smaller steps
+- Work with specific selections in large documents
+
+## General solutions
+
+### Restart sequence
+1. Stop the server (Ctrl+C)
+2. Close your MCP client
+3. Close Figma
+4. Start server
+5. Open Figma and plugin
+6. Open MCP client
+7. Connect channel
+
+### Port conflicts
+If port 3055 is occupied:
+- **macOS/Linux:** `lsof -i :3055`
+- **Windows:** `netstat -ano | findstr :3055`
+
+## Still having issues?
+
+Open an issue on [GitHub](https://github.com/arinspunk/claude-talk-to-figma-mcp/issues) with:
+- Problem description
+- Steps to reproduce
+- Operating system
+- Error messages
+</script>
+
+<script>
+// Load embedded markdown files from script tags
+document.querySelectorAll('script[data-file]').forEach(el => {
+  FILE_CONTENTS[el.dataset.file] = el.textContent.trim();
+});
+</script>
+</body>
+</html>
