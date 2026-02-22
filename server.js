@@ -236,7 +236,7 @@ function getHTML() {
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Doc Viewer</title>
+<title>SDV - Simple Doc Viewer</title>
 <style>
   :root {
     --bg: #0e1117;
@@ -655,7 +655,7 @@ function getHTML() {
 
 <div class="header">
   <div class="header-left">
-    <h1>Doc Viewer</h1>
+    <h1>SDV - Simple Doc Viewer</h1>
     <span class="path-badge" id="path-badge"></span>
   </div>
   <div class="header-right">
@@ -678,7 +678,7 @@ function getHTML() {
     <div class="content-body" id="content-body">
       <div class="welcome">
         <div class="icon-large">&#128196;</div>
-        <h2>Doc Viewer</h2>
+        <h2>SDV - Simple Doc Viewer</h2>
         <p>Click a file to view its contents</p>
         <div class="keys">
           <kbd>.md</kbd><kbd>.js</kbd><kbd>.ts</kbd><kbd>.json</kbd><kbd>.yaml</kbd><kbd>.py</kbd><kbd>.html</kbd><kbd>.css</kbd>
@@ -995,7 +995,7 @@ function renderContent() {
 function showWelcome() {
   $content.innerHTML = '<div class="welcome">'
     + '<div class="icon-large">&#128196;</div>'
-    + '<h2>Doc Viewer</h2>'
+    + '<h2>SDV - Simple Doc Viewer</h2>'
     + '<p>Click a file to view its contents</p>'
     + '<div class="keys">'
     + '<kbd>.md</kbd><kbd>.js</kbd><kbd>.ts</kbd><kbd>.json</kbd><kbd>.yaml</kbd><kbd>.py</kbd><kbd>.html</kbd><kbd>.css</kbd>'
@@ -1531,7 +1531,7 @@ function startServer() {
   server.listen(PORT, '127.0.0.1', function () {
     const serverUrl = 'http://localhost:' + PORT;
     console.log('');
-    console.log('  Doc Viewer running at ' + serverUrl);
+    console.log('  SDV running at ' + serverUrl);
     console.log('  Root: ' + ROOT_DIR);
     console.log('');
     openBrowser(serverUrl);
