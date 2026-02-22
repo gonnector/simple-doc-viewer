@@ -6,9 +6,7 @@ A lightweight local document viewer that lets you browse and read text files and
 
 **Zero dependencies. Single file. Offline-first.**
 
-<!-- Screenshots will be added here -->
-<!-- ![Dark Mode](docs/images/dark-mode.png) -->
-<!-- ![Light Mode](docs/images/light-mode.png) -->
+![Browse and Render](docs/images/browse-and-render.gif)
 
 ---
 
@@ -156,7 +154,11 @@ Automatically renders ` ```mermaid ` code blocks into diagrams. 9 diagram types 
 
 Mermaid.js (~2MB) is automatically downloaded on first run and served locally afterward — no CDN dependency at runtime.
 
+![Mermaid Diagrams](docs/images/mermaid-diagrams.gif)
+
 ### Day/Night Mode
+
+![Theme Toggle](docs/images/theme-toggle.gif)
 
 Toggle between dark and light themes with the **Theme** button. Affects:
 - All UI elements (sidebar, content, tabs, buttons)
@@ -164,6 +166,8 @@ Toggle between dark and light themes with the **Theme** button. Affects:
 - Mermaid diagram theme (`dark` ↔ `default`)
 
 ### Split View
+
+![Split View](docs/images/split-view.gif)
 
 Toggle the **Source** button on Markdown files to see:
 - **Left panel**: Raw Markdown source with line numbers

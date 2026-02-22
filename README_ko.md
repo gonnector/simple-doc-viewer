@@ -6,9 +6,7 @@
 
 **의존성 제로. 단일 파일. 오프라인 우선.**
 
-<!-- 스크린샷 추가 예정 -->
-<!-- ![다크 모드](docs/images/dark-mode.png) -->
-<!-- ![라이트 모드](docs/images/light-mode.png) -->
+![탐색 및 렌더링](docs/images/browse-and-render.gif)
 
 ---
 
@@ -155,7 +153,11 @@ JavaScript, TypeScript, Python, Bash, CSS, HTML, JSON, YAML, SQL, Go, Rust, C/C+
 
 Mermaid.js (~2MB)는 최초 실행 시 자동 다운로드되어 로컬에 저장됩니다. 이후에는 CDN 의존 없이 완전 오프라인으로 동작합니다.
 
+![Mermaid 다이어그램](docs/images/mermaid-diagrams.gif)
+
 ### Day/Night 모드
+
+![테마 전환](docs/images/theme-toggle.gif)
 
 **Theme** 버튼으로 다크/라이트 테마를 전환합니다:
 - 모든 UI 요소 (사이드바, 콘텐츠, 탭, 버튼)
@@ -163,6 +165,8 @@ Mermaid.js (~2MB)는 최초 실행 시 자동 다운로드되어 로컬에 저�
 - Mermaid 다이어그램 테마 (`dark` ↔ `default`)
 
 ### Split View (분할 보기)
+
+![분할 보기](docs/images/split-view.gif)
 
 마크다운 파일에서 **Source** 버튼을 토글하면:
 - **왼쪽 패널**: 라인 번호가 있는 원본 마크다운 소스
