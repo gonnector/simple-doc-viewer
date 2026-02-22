@@ -40,7 +40,7 @@ node server.js
 node server.js --root /path/to/your/docs
 ```
 
-브라우저에서 `http://localhost:3000`을 엽니다.
+브라우저가 자동으로 열립니다. 포트 3000이 이미 사용 중이면 기존 프로세스를 종료하고 재시작합니다.
 
 ### 커맨드라인 옵션
 
@@ -49,6 +49,7 @@ node server.js --root /path/to/your/docs
 | `--root <경로>` | `-r` | 현재 디렉토리 | 탐색할 루트 디렉토리 |
 | `--port <번호>` | `-p` | `3000` | 서버 포트 |
 | `--no-hidden` | | | 숨김 파일 기본 비표시 |
+| `--no-open` | | | 브라우저 자동 열기 비활성화 |
 
 ### 사용 예시
 

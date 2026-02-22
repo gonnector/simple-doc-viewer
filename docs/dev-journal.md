@@ -208,3 +208,26 @@ server.js (~2000줄)
 1. **CSS 변수 패턴의 위력**: `:root` 변수 + `body.light-mode` 오버라이드만으로 600줄+ UI의 테마를 깔끔하게 전환
 2. **재렌더링 vs 스타일 오버라이드**: Mermaid처럼 인라인 SVG를 생성하는 라이브러리는 CSS 오버라이드가 아닌 전체 재렌더링이 필요
 3. **스크롤 동기화의 무한 루프**: 양쪽 패널에 scroll 이벤트가 있으면 한쪽 스크롤 → 다른 쪽 스크롤 → 다시 첫 번째 스크롤 → 무한 루프. `syncing` 플래그로 방지
+
+---
+
+## v0.51: 스마트 시작 (2026-02-22)
+
+### 추가 기능
+
+- **포트 충돌 자동 해결**: `EADDRINUSE` 에러 발생 시 기존 프로세스를 자동으로 찾아 종료하고 재시작
+  - Windows: `netstat -ano` 파싱 → `taskkill /F /PID`
+  - Unix: `lsof -ti :PORT` → `kill -9`
+- **브라우저 자동 열기**: 서버 시작 후 기본 브라우저에서 자동으로 열기
+  - Windows: `start`, macOS: `open`, Linux: `xdg-open`
+  - `--no-open` 플래그로 비활성화 가능
+
+### 동기
+
+여러 터미널에서 작업 시 `sdv`를 실행하면 이미 서버가 올라가 있는 경우 `EADDRINUSE` 에러로 실패. 매번 수동으로 PID를 찾아 kill하는 과정이 번거로워 자동화.
+
+### 기술 결정
+
+- `child_process.exec/execSync` 사용 (Node.js 내장 모듈, 의존성 0개 원칙 유지)
+- `server.on('error')` 이벤트 핸들러로 EADDRINUSE 포착 후 비동기 처리
+- kill 후 `setTimeout(startServer, 1000)`으로 OS가 포트를 해제할 시간 확보

@@ -9,16 +9,20 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const https = require('https');
+const { exec, execSync } = require('child_process');
 
 const args = process.argv.slice(2);
 let PORT = 3000;
 let ROOT_DIR = process.cwd();
+let NO_OPEN = false;
 
 for (let i = 0; i < args.length; i++) {
   if ((args[i] === '--port' || args[i] === '-p') && args[i + 1]) {
     PORT = parseInt(args[i + 1]); i++;
   } else if ((args[i] === '--root' || args[i] === '-r') && args[i + 1]) {
     ROOT_DIR = path.resolve(args[i + 1]); i++;
+  } else if (args[i] === '--no-open') {
+    NO_OPEN = true;
   }
 }
 
@@ -1479,9 +1483,80 @@ const server = http.createServer(function (req, res) {
 // Mermaid 자동 다운로드 시작
 downloadMermaid();
 
-server.listen(PORT, '127.0.0.1', function () {
-  console.log('');
-  console.log('  Doc Viewer running at http://localhost:' + PORT);
-  console.log('  Root: ' + ROOT_DIR);
-  console.log('');
+// --- 포트 충돌 자동 해결 & 브라우저 자동 열기 ---
+
+function openBrowser(url) {
+  if (NO_OPEN) return;
+  const cmd = process.platform === 'win32' ? 'start "" "' + url + '"' :
+              process.platform === 'darwin' ? 'open "' + url + '"' :
+              'xdg-open "' + url + '"';
+  exec(cmd, function () {});
+}
+
+function findAndKillPort(port, callback) {
+  if (process.platform === 'win32') {
+    exec('netstat -ano', function (err, stdout) {
+      if (err) return callback(false);
+      const pids = new Set();
+      stdout.split('\n').forEach(function (line) {
+        const parts = line.trim().split(/\s+/);
+        if (parts.length >= 5 && parts[3] === 'LISTENING') {
+          const addrParts = parts[1].split(':');
+          if (addrParts[addrParts.length - 1] === String(port)) {
+            const pid = parts[4];
+            if (pid && /^\d+$/.test(pid) && pid !== '0') pids.add(pid);
+          }
+        }
+      });
+      if (pids.size === 0) return callback(false);
+      pids.forEach(function (pid) {
+        console.log('  Stopping existing process (PID: ' + pid + ')...');
+        try { execSync('taskkill /F /PID ' + pid, { stdio: 'ignore' }); } catch (e) {}
+      });
+      callback(true);
+    });
+  } else {
+    exec('lsof -ti :' + port, function (err, stdout) {
+      if (err || !stdout.trim()) return callback(false);
+      stdout.trim().split('\n').forEach(function (pid) {
+        console.log('  Stopping existing process (PID: ' + pid + ')...');
+        try { execSync('kill -9 ' + pid); } catch (e) {}
+      });
+      callback(true);
+    });
+  }
+}
+
+function startServer() {
+  server.listen(PORT, '127.0.0.1', function () {
+    const serverUrl = 'http://localhost:' + PORT;
+    console.log('');
+    console.log('  Doc Viewer running at ' + serverUrl);
+    console.log('  Root: ' + ROOT_DIR);
+    console.log('');
+    openBrowser(serverUrl);
+  });
+}
+
+server.on('error', function (err) {
+  if (err.code === 'EADDRINUSE') {
+    console.log('');
+    console.log('  Port ' + PORT + ' is already in use.');
+    console.log('  Finding and stopping the existing process...');
+    findAndKillPort(PORT, function (killed) {
+      if (killed) {
+        console.log('  Restarting server...');
+        console.log('');
+        setTimeout(startServer, 1000);
+      } else {
+        console.error('  Could not find the process. Please free port ' + PORT + ' manually.');
+        process.exit(1);
+      }
+    });
+  } else {
+    console.error('  Server error: ' + err.message);
+    process.exit(1);
+  }
 });
+
+startServer();

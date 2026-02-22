@@ -40,7 +40,7 @@ node server.js
 node server.js --root /path/to/your/docs
 ```
 
-Open `http://localhost:3000` in your browser.
+The browser opens automatically. If port 3000 is already in use, the existing process is stopped and restarted.
 
 ### Command-Line Options
 
@@ -49,6 +49,7 @@ Open `http://localhost:3000` in your browser.
 | `--root <path>` | `-r` | Current directory | Root directory to browse |
 | `--port <number>` | `-p` | `3000` | Server port |
 | `--no-hidden` | | | Hide dotfiles by default |
+| `--no-open` | | | Don't auto-open browser on start |
 
 ### Examples
 
