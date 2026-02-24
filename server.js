@@ -1310,8 +1310,13 @@ $tree.addEventListener('click', function(e) {
 
 // --- Tabs ---
 function openFile(filePath, fileName, directContent) {
-  // Already open? Just activate
+  // Already open?
   if (state.openTabs.indexOf(filePath) !== -1) {
+    // Drag-drop with new content: update cache so same-named files show new content
+    if (directContent !== undefined) {
+      var ext2 = getExt(fileName);
+      state.tabCache[filePath] = { name: fileName, ext: ext2, data: { path: filePath, name: fileName, ext: ext2, content: directContent, size: directContent.length }, loading: false };
+    }
     activateTab(filePath);
     return;
   }
