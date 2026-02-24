@@ -1398,7 +1398,7 @@ $tabs.addEventListener('click', function(e) {
 });
 
 // --- Content rendering ---
-function renderContent() {
+function renderContent(preserveScroll) {
   if (!state.activeTab) {
     showWelcome();
     return;
@@ -1423,6 +1423,16 @@ function renderContent() {
 
   docLines = data.content.split('\\n').length;
 
+  var savedRatio = 0;
+  if (preserveScroll) {
+    var prevRenPanel = $content.querySelector('.md-render-panel');
+    if (prevRenPanel && prevRenPanel.scrollHeight > 0) {
+      savedRatio = prevRenPanel.scrollTop / prevRenPanel.scrollHeight;
+    } else if ($content.scrollHeight > 0) {
+      savedRatio = $content.scrollTop / $content.scrollHeight;
+    }
+  }
+
   if (data.ext === 'md') {
     var _filePath = state.activeTab || '';
     var _lastSlash = _filePath.lastIndexOf('/');
@@ -1436,17 +1446,29 @@ function renderContent() {
         + '<div class="md-render-panel">'
         + '<div class="md-rendered">' + md.parse(data.content) + '</div>'
         + '</div></div>';
-      $content.scrollTop = 0;
+      if (!preserveScroll) $content.scrollTop = 0;
       setupSplitSync();
     } else {
       $content.innerHTML = '<div class="md-rendered">' + md.parse(data.content) + '</div>';
-      $content.scrollTop = 0;
+      if (!preserveScroll) $content.scrollTop = 0;
     }
     renderMermaidBlocks();
   } else {
     $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';
-    $content.scrollTop = 0;
+    if (!preserveScroll) $content.scrollTop = 0;
   }
+
+  if (preserveScroll) {
+    var newRenPanel = $content.querySelector('.md-render-panel');
+    var newSrcPanel = $content.querySelector('.md-source-panel');
+    if (newRenPanel) {
+      newRenPanel.scrollTop = savedRatio * newRenPanel.scrollHeight;
+      if (newSrcPanel) newSrcPanel.scrollTop = savedRatio * newSrcPanel.scrollHeight;
+    } else {
+      $content.scrollTop = savedRatio * $content.scrollHeight;
+    }
+  }
+
   updateStatusBar();
 }
 
@@ -1820,7 +1842,7 @@ $btnSource.addEventListener('click', function() {
   if (state.activeTab) {
     var tab = state.tabCache[state.activeTab];
     if (tab && tab.data && tab.data.ext === 'md') {
-      renderContent();
+      renderContent(true);
     }
   }
 });
@@ -1838,7 +1860,7 @@ $btnTheme.addEventListener('click', function() {
   if (mermaidLoaded && window.mermaid) {
     window.mermaid.initialize({ startOnLoad: false, theme: state.lightMode ? 'default' : 'dark' });
   }
-  renderContent();
+  renderContent(true);
 });
 
 $btnHidden.addEventListener('click', function() {
