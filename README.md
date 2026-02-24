@@ -120,7 +120,8 @@ Drag any supported file from your OS file manager directly onto the browser wind
 
 Full-featured custom Markdown parser (no external libraries):
 
-- Headings (h1–h6) with distinct colors
+- Headings (h1–h6) with distinct colors and auto-generated anchor IDs
+- **In-document section links** — `[text](#heading-anchor)` clicks scroll smoothly to the target heading without reloading the page
 - **Bold**, *italic*, ~~strikethrough~~, `inline code`
 - Ordered / unordered / nested lists (stack-based parser for arbitrary depth)
 - Checklists with checkboxes

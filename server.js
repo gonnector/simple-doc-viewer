@@ -1042,9 +1042,37 @@ function updateStatusBar() {
 
 $content.addEventListener('scroll', updateStatusBar);
 
+// Intercept anchor link clicks inside rendered content
+$content.addEventListener('click', function(e) {
+  var el = e.target;
+  while (el && el.tagName !== 'A') el = el.parentElement;
+  if (!el) return;
+  var href = el.getAttribute('href');
+  if (href && href.charAt(0) === '#') {
+    e.preventDefault();
+    var id = href.slice(1);
+    var target = document.getElementById(id);
+    if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+});
+
 // --- Helpers ---
 function escHtml(s) {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+function slugify(text) {
+  text = text.replace(/\\*\\*?([^*]*)\\*\\*?/g, '$1').replace(/__?([^_]*)__?/g, '$1');
+  text = text.replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g, '$1');
+  text = text.toLowerCase();
+  // Keep: a-z, 0-9, space, hyphen, Korean syllables & high Unicode (>= 0xAC00)
+  var _out = '';
+  for (var _i = 0; _i < text.length; _i++) {
+    var _c = text.charCodeAt(_i);
+    if ((_c >= 97 && _c <= 122) || (_c >= 48 && _c <= 57) || _c === 32 || _c === 45 || _c >= 0xAC00) {
+      _out += text[_i];
+    }
+  }
+  return _out.replace(/\\s/g, '-');
 }
 
 function getExt(name) {
@@ -1497,7 +1525,10 @@ var md = (function() {
       return '<img src="' + src + '" alt="' + alt + '" loading="lazy">';
     });
     // Links
-    text = text.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
+    text = text.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, function(m, t, h) {
+      if (h.charAt(0) === '#') return '<a href="' + h + '">' + t + '</a>';
+      return '<a href="' + h + '" target="_blank" rel="noopener">' + t + '</a>';
+    });
     // Auto links
     text = text.replace(/(^|[^"=])((https?:\\/\\/)[^\\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
     // Bold italic
@@ -1602,7 +1633,8 @@ var md = (function() {
       var hMatch = line.match(/^(#{1,6})\\s+(.+)/);
       if (hMatch) {
         var lvl = hMatch[1].length;
-        html += '<h' + lvl + '>' + inlineFormat(hMatch[2]) + '</h' + lvl + '>';
+        var hid = slugify(hMatch[2]);
+        html += '<h' + lvl + ' id="' + hid + '">' + inlineFormat(hMatch[2]) + '</h' + lvl + '>';
         i++; continue;
       }
 

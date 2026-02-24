@@ -26,6 +26,7 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ### Fixed
 - **Inline code HTML escaping** — backtick code spans (`` `<details>` ``, `` `<kbd>` ``) now escape HTML entities correctly; previously the raw HTML tags were injected into the DOM
+- **Section link navigation** — clicking `[text](#heading-anchor)` links inside rendered Markdown now scrolls smoothly to the target heading instead of reloading the SPA; headings automatically receive anchor `id` attributes using GitHub-compatible slugification (supports Korean, Latin, and other Unicode characters)
 
 ---
 
