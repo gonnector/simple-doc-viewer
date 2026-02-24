@@ -15,6 +15,7 @@ const args = process.argv.slice(2);
 let PORT = 3000;
 let ROOT_DIR = process.cwd();
 let NO_OPEN = false;
+let INITIAL_FILE = null;
 
 for (let i = 0; i < args.length; i++) {
   if ((args[i] === '--port' || args[i] === '-p') && args[i + 1]) {
@@ -23,10 +24,27 @@ for (let i = 0; i < args.length; i++) {
     ROOT_DIR = path.resolve(args[i + 1]); i++;
   } else if (args[i] === '--no-open') {
     NO_OPEN = true;
+  } else if (!args[i].startsWith('-')) {
+    const p = path.resolve(args[i]);
+    try {
+      if (fs.statSync(p).isFile()) { INITIAL_FILE = p; ROOT_DIR = path.dirname(p); }
+      else { ROOT_DIR = p; }
+    } catch(e) { ROOT_DIR = p; }
   }
 }
 
 ROOT_DIR = ROOT_DIR.replace(/\\/g, '/');
+
+// --root 가 파일 경로인 경우 처리 (기존 alias: sdv README.md → --root README.md)
+if (!INITIAL_FILE) {
+  try {
+    if (fs.statSync(ROOT_DIR).isFile()) {
+      INITIAL_FILE = ROOT_DIR;
+      ROOT_DIR = path.dirname(ROOT_DIR).replace(/\\/g, '/');
+    }
+  } catch(e) {}
+}
+if (INITIAL_FILE) INITIAL_FILE = INITIAL_FILE.replace(/\\/g, '/');
 
 const TEXT_EXTENSIONS = new Set([
   'md', 'txt', 'js', 'ts', 'jsx', 'tsx', 'mjs', 'cjs',
@@ -229,6 +247,37 @@ function handleRead(req, res, query) {
   }
 }
 
+// === [4b] Image 핸들러 ===
+function handleImage(req, res, query) {
+  if (!query.path) return sendError(res, 'Path required');
+  const filePath = path.resolve(query.path).replace(/\\/g, '/');
+  if (!isPathSafe(filePath)) return sendError(res, 'Access denied', 403);
+  const ext = path.extname(filePath).slice(1).toLowerCase();
+  const imageMimes = { gif: 'image/gif', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', svg: 'image/svg+xml', webp: 'image/webp', ico: 'image/x-icon', bmp: 'image/bmp', tiff: 'image/tiff', tif: 'image/tiff' };
+  const mime = imageMimes[ext];
+  if (!mime) return sendError(res, 'Not an image file');
+  try {
+    const data = fs.readFileSync(filePath);
+    res.writeHead(200, { 'Content-Type': mime, 'Content-Length': data.length, 'Cache-Control': 'public, max-age=3600' });
+    res.end(data);
+  } catch (e) {
+    sendError(res, 'Cannot read image: ' + e.message, 404);
+  }
+}
+
+// === [4c] Chroot 핸들러 (drag-drop용 루트 변경) ===
+function handleChroot(req, res, query) {
+  if (!query.path) return sendError(res, 'Path required');
+  const newRoot = path.resolve(query.path).replace(/\\/g, '/');
+  try {
+    if (!fs.statSync(newRoot).isDirectory()) return sendError(res, 'Not a directory');
+    ROOT_DIR = newRoot;
+    sendJSON(res, { root: ROOT_DIR });
+  } catch(e) {
+    sendError(res, 'Directory not found: ' + e.message, 404);
+  }
+}
+
 // === [5] HTML 프론트엔드 ===
 function getHTML() {
   return `<!DOCTYPE html>
@@ -355,7 +404,35 @@ function getHTML() {
     display: flex;
     flex-direction: column;
     overflow: hidden;
+    transition: width 0.2s ease, min-width 0.2s ease;
   }
+  .sidebar.collapsed { width: 0; min-width: 0; border-right: none; }
+  .btn-sidebar-toggle {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: none;
+    border: 1px solid transparent;
+    color: var(--text-dim);
+    cursor: pointer;
+    width: 26px;
+    height: 26px;
+    border-radius: 6px;
+    flex-shrink: 0;
+    transition: color 0.15s, background 0.15s, border-color 0.15s;
+    user-select: none;
+  }
+  .btn-sidebar-toggle:hover {
+    color: var(--text);
+    background: var(--bg);
+    border-color: var(--border);
+  }
+  .btn-sidebar-toggle svg {
+    width: 14px;
+    height: 14px;
+    transition: transform 0.2s ease;
+  }
+  .btn-sidebar-toggle.collapsed svg { transform: rotate(180deg); }
   .sidebar-header {
     padding: 8px 10px;
     border-bottom: 1px solid var(--border);
@@ -392,20 +469,27 @@ function getHTML() {
   .tree-item.dir-item { color: var(--text-dim); }
   .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 12px; }
   .tree-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
+  .tree-item .file-meta {
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+  }
   .tree-item .badge {
     font-size: 9px;
-    padding: 1px 5px;
+    padding: 1px 4px;
     border-radius: 3px;
     font-weight: 600;
     text-transform: uppercase;
     flex-shrink: 0;
     opacity: 0.8;
+    min-width: 26px;
+    text-align: center;
   }
   .tree-item .size {
     font-size: 10px;
     color: var(--text-dim);
     flex-shrink: 0;
     opacity: 0.6;
+    min-width: 46px;
+    text-align: right;
   }
   .tree-item.parent-dir { border-bottom: 1px solid var(--border); margin-bottom: 2px; padding-bottom: 5px; }
 
@@ -452,6 +536,20 @@ function getHTML() {
 
   .content-body { flex: 1; overflow-y: auto; padding: 24px 32px; }
 
+  /* Status bar */
+  .status-bar {
+    flex-shrink: 0; height: 22px;
+    padding: 0 16px;
+    display: flex; align-items: center; justify-content: flex-end; gap: 10px;
+    background: var(--sidebar-bg);
+    border-top: 1px solid var(--border);
+    font-size: 11px; font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    color: var(--text-dim); user-select: none;
+  }
+  .status-bar.empty { opacity: 0; pointer-events: none; }
+  .status-sep { opacity: 0.3; }
+  .status-pct { color: var(--accent); font-weight: 600; display: inline-block; width: 4ch; text-align: right; }
+
   /* Welcome screen */
   .welcome {
     display: flex;
@@ -489,8 +587,13 @@ function getHTML() {
   .error-display .icon-large { font-size: 48px; opacity: 0.3; }
   .error-display p { font-size: 13px; max-width: 400px; }
 
+  /* Drop overlay */
+  .drop-overlay { display: none; position: fixed; inset: 0; z-index: 9999; pointer-events: none; background: rgba(88,166,255,0.06); border: 3px dashed var(--accent); align-items: center; justify-content: center; }
+  .drop-overlay.active { display: flex; }
+  .drop-msg { font-size: 15px; font-weight: 600; color: var(--accent); background: var(--sidebar-bg); padding: 18px 32px; border-radius: 12px; border: 1px solid var(--accent); box-shadow: 0 4px 24px rgba(0,0,0,0.4); }
+
   /* Markdown rendered */
-  .md-rendered { line-height: 1.75; max-width: 860px; }
+  .md-rendered { line-height: 1.75; width: 100%; }
   .md-rendered h1 { font-size: 1.8em; font-weight: 700; margin: 1.5em 0 0.5em; padding-bottom: 0.3em; border-bottom: 2px solid var(--accent); }
   .md-rendered h2 { font-size: 1.4em; font-weight: 600; margin: 2em 0 0.5em; padding-bottom: 0.25em; border-bottom: 1px solid var(--border); color: var(--accent); }
   .md-rendered h3 { font-size: 1.15em; font-weight: 600; margin: 1.2em 0 0.4em; }
@@ -622,6 +725,10 @@ function getHTML() {
   body.light-mode .md-rendered tbody tr:hover { background: rgba(9,105,218,0.03); }
   body.light-mode .md-rendered mark { background: #fff8c5; color: #1f2328; }
   body.light-mode .header-btn.active { background: rgba(9,105,218,0.1); }
+  body.light-mode .sidebar-opt.active { color: #0969da; border-color: #0969da; background: rgba(9,105,218,0.08); }
+  body.light-mode .btn-help:hover { color: #0969da; border-color: #0969da; background: rgba(9,105,218,0.08); }
+  body.light-mode .help-kbd { background: #f6f8fa; border-color: #d0d7de; color: #1f2328; }
+  body.light-mode .help-row + .help-row { border-top-color: rgba(208,215,222,0.5); }
   body.light-mode .raw-line:hover { background: rgba(9,105,218,0.04); }
   body.light-mode .hljs-keyword { color: #cf222e; }
   body.light-mode .hljs-string, body.light-mode .hljs-attr { color: #0a3069; }
@@ -636,6 +743,117 @@ function getHTML() {
   body.light-mode .tok-fn { color: #8250df; }
   body.light-mode .tok-op { color: #cf222e; }
   body.light-mode .tok-key { color: #1a7f37; }
+
+  /* Theme toggle switch */
+  .theme-toggle {
+    display: flex; align-items: center; gap: 6px;
+    background: none; border: 1px solid var(--border);
+    border-radius: 20px; padding: 3px 9px;
+    cursor: pointer; user-select: none;
+    transition: border-color 0.15s;
+  }
+  .theme-toggle:hover { border-color: var(--text-dim); }
+  .theme-icon {
+    display: flex; align-items: center; justify-content: center;
+    width: 13px; height: 13px; transition: color 0.25s; color: var(--text-dim);
+  }
+  .theme-icon svg { width: 13px; height: 13px; }
+  .theme-track {
+    position: relative; width: 26px; height: 14px;
+    background: var(--border); border-radius: 7px;
+    transition: background 0.25s; flex-shrink: 0;
+  }
+  .theme-knob {
+    position: absolute; top: 2px; left: 2px;
+    width: 10px; height: 10px; border-radius: 50%;
+    background: #58a6ff;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.4);
+    transition: transform 0.25s cubic-bezier(0.34,1.56,0.64,1), background 0.25s;
+  }
+  body.light-mode .theme-track { background: #fde68a; }
+  body.light-mode .theme-knob { transform: translateX(12px); background: #f59e0b; }
+  body:not(.light-mode) .theme-moon { color: #93c5fd; }
+  body.light-mode .theme-sun { color: #f59e0b; }
+
+  /* Sidebar opts row */
+  .sidebar-opts {
+    padding: 5px 8px; border-bottom: 1px solid var(--border);
+    display: flex; gap: 4px;
+  }
+  .sidebar-opt {
+    display: flex; align-items: center; gap: 5px;
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); font-size: 11px;
+    padding: 3px 8px 3px 6px; border-radius: 5px;
+    cursor: pointer; transition: all 0.15s; user-select: none;
+  }
+  .sidebar-opt svg { width: 12px; height: 12px; flex-shrink: 0; }
+  .sidebar-opt:hover { color: var(--text); border-color: var(--text-dim); }
+  .sidebar-opt.active { color: var(--accent); border-color: var(--accent); background: rgba(88,166,255,0.08); }
+
+  /* Help button */
+  .btn-help {
+    width: 26px; height: 26px; padding: 0;
+    border-radius: 50%; font-size: 12px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    border: 1px solid var(--border); background: none;
+    color: var(--text-dim); cursor: pointer;
+    transition: all 0.15s; user-select: none; flex-shrink: 0;
+  }
+  .btn-help:hover { color: var(--accent); border-color: var(--accent); background: rgba(88,166,255,0.08); }
+
+  /* Help overlay */
+  .help-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.55);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    z-index: 2000; display: flex;
+    align-items: center; justify-content: center;
+    opacity: 0; pointer-events: none; transition: opacity 0.18s;
+  }
+  .help-overlay.visible { opacity: 1; pointer-events: all; }
+  .help-modal {
+    background: var(--sidebar-bg); border: 1px solid var(--border);
+    border-radius: 14px; width: 420px; max-height: 80vh; overflow-y: auto;
+    box-shadow: 0 32px 80px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.04);
+    transform: translateY(10px) scale(0.97);
+    transition: transform 0.2s cubic-bezier(0.34,1.4,0.64,1);
+  }
+  .help-overlay.visible .help-modal { transform: translateY(0) scale(1); }
+  .help-modal-header {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 16px 20px 13px; border-bottom: 1px solid var(--border);
+  }
+  .help-modal-header h2 {
+    font-size: 11px; font-weight: 700; letter-spacing: 0.1em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .help-close {
+    background: none; border: none; color: var(--text-dim);
+    cursor: pointer; font-size: 15px; padding: 2px 5px;
+    border-radius: 5px; line-height: 1; transition: color 0.15s;
+  }
+  .help-close:hover { color: var(--text); }
+  .help-section { padding: 12px 20px; border-bottom: 1px solid var(--border); }
+  .help-section:last-child { border-bottom: none; }
+  .help-section-title {
+    font-size: 10px; font-weight: 700; text-transform: uppercase;
+    letter-spacing: 0.1em; color: var(--accent); margin-bottom: 8px;
+  }
+  .help-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 5px 0;
+  }
+  .help-row + .help-row { border-top: 1px solid rgba(48,54,61,0.5); }
+  .help-desc { font-size: 12px; color: var(--text-dim); }
+  .help-keys { display: flex; gap: 4px; align-items: center; }
+  .help-kbd {
+    font-family: 'Cascadia Code', 'Fira Code', Consolas, monospace;
+    font-size: 11px; background: var(--bg);
+    border: 1px solid var(--border); border-bottom-width: 2px;
+    border-radius: 4px; padding: 1px 7px; color: var(--text);
+  }
+  .help-kbd-sep { font-size: 10px; color: var(--text-dim); }
 
   /* Mermaid */
   .mermaid { margin: 1em 0; text-align: center; }
@@ -653,16 +871,82 @@ function getHTML() {
 </head>
 <body>
 
+<div class="help-overlay" id="help-overlay">
+  <div class="help-modal">
+    <div class="help-modal-header">
+      <h2>Keyboard Shortcuts</h2>
+      <button class="help-close" id="help-close">&#x2715;</button>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">Navigation</div>
+      <div class="help-row">
+        <span class="help-desc">Focus file search</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><span class="help-kbd-sep">+</span><kbd class="help-kbd">F</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Clear search / Dismiss</span>
+        <div class="help-keys"><kbd class="help-kbd">Esc</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Close active tab</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><span class="help-kbd-sep">+</span><kbd class="help-kbd">W</kbd></div>
+      </div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">View</div>
+      <div class="help-row">
+        <span class="help-desc">Toggle sidebar</span>
+        <div class="help-keys"><kbd class="help-kbd">B</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Toggle light / dark theme</span>
+        <div class="help-keys"><kbd class="help-kbd">T</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Toggle markdown source</span>
+        <div class="help-keys"><kbd class="help-kbd">S</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Toggle word wrap</span>
+        <div class="help-keys"><kbd class="help-kbd">W</kbd></div>
+      </div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">Help</div>
+      <div class="help-row">
+        <span class="help-desc">Show this help</span>
+        <div class="help-keys"><kbd class="help-kbd">?</kbd></div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="header">
   <div class="header-left">
+    <button class="btn-sidebar-toggle" id="btn-sidebar" title="Toggle sidebar (B)">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="1" width="12" height="12" rx="2"/>
+        <line x1="5" y1="1" x2="5" y2="13"/>
+        <line x1="8" y1="5" x2="10" y2="7"/>
+        <line x1="8" y1="9" x2="10" y2="7"/>
+      </svg>
+    </button>
     <h1>SDV - Simple Doc Viewer</h1>
     <span class="path-badge" id="path-badge"></span>
   </div>
   <div class="header-right">
-    <button class="header-btn" id="btn-theme" title="Toggle light/dark mode">Theme</button>
+    <button class="theme-toggle" id="btn-theme" title="Toggle light/dark mode (T)">
+      <span class="theme-icon theme-sun">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>
+      </span>
+      <div class="theme-track"><div class="theme-knob"></div></div>
+      <span class="theme-icon theme-moon">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 .278a.77.77 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
+      </span>
+    </button>
     <button class="header-btn" id="btn-source" title="Toggle markdown source view">Source</button>
-    <button class="header-btn" id="btn-hidden" title="Show hidden files">Hidden</button>
     <button class="header-btn" id="btn-wrap" title="Toggle word wrap">Wrap</button>
+    <button class="btn-help" id="btn-help" title="Keyboard shortcuts (?)">?</button>
   </div>
 </div>
 
@@ -670,6 +954,15 @@ function getHTML() {
   <div class="sidebar">
     <div class="sidebar-header">
       <input type="text" id="search-input" placeholder="Filter files...">
+    </div>
+    <div class="sidebar-opts">
+      <button class="sidebar-opt" id="btn-hidden" title="Show hidden files">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+          <circle cx="8" cy="8" r="2"/>
+        </svg>
+        Hidden
+      </button>
     </div>
     <div class="file-tree" id="file-tree"></div>
   </div>
@@ -685,7 +978,15 @@ function getHTML() {
         </div>
       </div>
     </div>
+    <div class="status-bar empty" id="status-bar">
+      <span id="status-lines"></span>
+      <span class="status-sep">&#183;</span>
+      <span class="status-pct" id="status-pct"></span>
+    </div>
   </div>
+</div>
+<div class="drop-overlay" id="drop-overlay">
+  <div class="drop-msg">&#128196; 파일을 놓으세요</div>
 </div>
 
 <script>
@@ -705,7 +1006,8 @@ var state = {
   wordWrap: false,
   lightMode: false,
   showSource: false,
-  searchQuery: ''
+  searchQuery: '',
+  rootDir: ${JSON.stringify(ROOT_DIR)}
 };
 
 // --- DOM refs ---
@@ -718,6 +1020,27 @@ var $btnTheme = document.getElementById('btn-theme');
 var $btnSource = document.getElementById('btn-source');
 var $btnHidden = document.getElementById('btn-hidden');
 var $btnWrap = document.getElementById('btn-wrap');
+var $btnSidebar = document.getElementById('btn-sidebar');
+var $sidebar = document.querySelector('.sidebar');
+var $btnHelp = document.getElementById('btn-help');
+var $helpOverlay = document.getElementById('help-overlay');
+var $statusBar = document.getElementById('status-bar');
+var $statusLines = document.getElementById('status-lines');
+var $statusPct = document.getElementById('status-pct');
+var docLines = 0;
+
+function updateStatusBar() {
+  if (!docLines) {
+    $statusBar.classList.add('empty');
+    return;
+  }
+  var pct = Math.min(100, Math.round(($content.scrollTop + $content.clientHeight) / $content.scrollHeight * 100));
+  $statusLines.textContent = docLines.toLocaleString() + ' lines';
+  $statusPct.textContent = pct + '%';
+  $statusBar.classList.remove('empty');
+}
+
+$content.addEventListener('scroll', updateStatusBar);
 
 // --- Helpers ---
 function escHtml(s) {
@@ -782,8 +1105,102 @@ function apiRead(filePath, callback) {
     .catch(function(e) { callback({ error: e.message }); });
 }
 
+function apiChroot(dirPath, callback) {
+  fetch('/api/chroot?path=' + encodeURIComponent(dirPath))
+    .then(function(r) { return r.json(); })
+    .then(callback)
+    .catch(function(e) { callback({ error: e.message }); });
+}
+
+// --- Drag & Drop ---
+var $dropOverlay = document.getElementById('drop-overlay');
+var _dragDepth = 0;
+
+document.addEventListener('dragenter', function(e) {
+  if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1) {
+    e.preventDefault();
+    _dragDepth++;
+    $dropOverlay.classList.add('active');
+  }
+});
+
+document.addEventListener('dragleave', function(e) {
+  _dragDepth--;
+  if (_dragDepth <= 0) { _dragDepth = 0; $dropOverlay.classList.remove('active'); }
+});
+
+document.addEventListener('dragover', function(e) {
+  if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1) {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'copy';
+  }
+});
+
+document.addEventListener('drop', function(e) {
+  e.preventDefault();
+  _dragDepth = 0;
+  $dropOverlay.classList.remove('active');
+
+  // 1차 시도: text/uri-list (파일 경로 추출 → 사이드바 이동 가능)
+  var uriList = e.dataTransfer.getData('text/uri-list');
+  if (uriList && uriList.trim()) {
+    var lines = uriList.split('\\n');
+    for (var i = 0; i < lines.length; i++) {
+      var uri = lines[i].trim().replace('\\r', '');
+      if (!uri || uri.charAt(0) === '#') continue;
+      var fp = parseFileUri(uri);
+      if (!fp) continue;
+      var dir = fp.substring(0, fp.lastIndexOf('/'));
+      var name = fp.substring(fp.lastIndexOf('/') + 1);
+      dropOpenFile(fp, dir, name);
+      return;
+    }
+  }
+
+  // 2차 폴백: FileReader (경로 불명 → 파일 내용만 읽기, 사이드바 이동 없음)
+  var files = e.dataTransfer.files;
+  if (files && files.length > 0) {
+    dropReadFile(files[0]);
+  }
+});
+
+function dropReadFile(file) {
+  var ext = file.name.split('.').pop().toLowerCase();
+  var textExts = ['md','txt','js','ts','jsx','tsx','json','yaml','yml','py','sh','bash',
+    'css','html','htm','go','rs','java','c','cpp','h','sql','toml','ini','cfg','env','xml','svg'];
+  if (textExts.indexOf(ext) === -1) {
+    alert('지원되지 않는 파일 형식입니다: .' + ext);
+    return;
+  }
+  var reader = new FileReader();
+  reader.onload = function(ev) {
+    var virtualPath = '__dropped__/' + file.name;
+    openFile(virtualPath, file.name, ev.target.result);
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+function parseFileUri(uri) {
+  if (uri.indexOf('file:///') !== 0) return null;
+  var decoded = decodeURIComponent(uri.slice(8));
+  if (decoded.charAt(1) !== ':') decoded = '/' + decoded; // Unix: prepend /
+  return decoded.replace(/\\\\/g, '/');
+}
+
+function dropOpenFile(filePath, dir, name) {
+  if (dir === state.rootDir || filePath.indexOf(state.rootDir + '/') === 0) {
+    navigateTo(dir, function() { openFile(filePath, name); });
+  } else {
+    apiChroot(dir, function(data) {
+      if (data.error) return;
+      state.rootDir = data.root;
+      navigateTo('', function() { openFile(filePath, name); });
+    });
+  }
+}
+
 // --- Navigation ---
-function navigateTo(dirPath) {
+function navigateTo(dirPath, onDone) {
   $search.value = '';
   state.searchQuery = '';
   apiList(dirPath, function(data) {
@@ -797,6 +1214,7 @@ function navigateTo(dirPath) {
     $pathBadge.textContent = data.path;
     $pathBadge.title = data.path;
     renderTree();
+    if (onDone) onDone();
   });
 }
 
@@ -838,10 +1256,10 @@ function renderTree() {
       + '<span class="name">' + escHtml(item.name) + '</span>';
 
     if (ext && !isDir) {
-      html += '<span class="badge" style="color:' + badgeColor + ';border:1px solid ' + badgeColor + '">' + ext + '</span>';
-    }
-    if (item.size !== undefined) {
-      html += '<span class="size">' + formatSize(item.size) + '</span>';
+      html += '<span class="file-meta">'
+        + '<span class="badge" style="color:' + badgeColor + ';border:1px solid ' + badgeColor + '">' + ext + '</span>'
+        + (item.size !== undefined ? '<span class="size">' + formatSize(item.size) + '</span>' : '')
+        + '</span>';
     }
     html += '</div>';
   }
@@ -863,7 +1281,7 @@ $tree.addEventListener('click', function(e) {
 });
 
 // --- Tabs ---
-function openFile(filePath, fileName) {
+function openFile(filePath, fileName, directContent) {
   // Already open? Just activate
   if (state.openTabs.indexOf(filePath) !== -1) {
     activateTab(filePath);
@@ -872,16 +1290,22 @@ function openFile(filePath, fileName) {
 
   // Add tab
   state.openTabs.push(filePath);
-  state.tabCache[filePath] = { name: fileName, ext: getExt(fileName), data: null, loading: true };
-  activateTab(filePath);
+  var ext = getExt(fileName);
 
-  // Fetch file
+  // Direct content (drag-drop FileReader) — no server fetch needed
+  if (directContent !== undefined) {
+    state.tabCache[filePath] = { name: fileName, ext: ext, data: { path: filePath, name: fileName, ext: ext, content: directContent, size: directContent.length }, loading: false };
+    activateTab(filePath);
+    return;
+  }
+
+  // Fetch file from server
+  state.tabCache[filePath] = { name: fileName, ext: ext, data: null, loading: true };
+  activateTab(filePath);
   apiRead(filePath, function(data) {
     state.tabCache[filePath].data = data;
     state.tabCache[filePath].loading = false;
-    if (state.activeTab === filePath) {
-      renderContent();
-    }
+    if (state.activeTab === filePath) renderContent();
   });
 }
 
@@ -969,7 +1393,12 @@ function renderContent() {
     return;
   }
 
+  docLines = data.content.split('\\n').length;
+
   if (data.ext === 'md') {
+    var _filePath = state.activeTab || '';
+    var _lastSlash = _filePath.lastIndexOf('/');
+    md.setBase(_lastSlash >= 0 ? _filePath.substring(0, _lastSlash) : '');
     if (state.showSource) {
       $content.innerHTML = '<div class="md-split">'
         + '<div class="md-source-panel">'
@@ -990,9 +1419,12 @@ function renderContent() {
     $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';
     $content.scrollTop = 0;
   }
+  updateStatusBar();
 }
 
 function showWelcome() {
+  docLines = 0;
+  $statusBar.classList.add('empty');
   $content.innerHTML = '<div class="welcome">'
     + '<div class="icon-large">&#128196;</div>'
     + '<h2>SDV - Simple Doc Viewer</h2>'
@@ -1004,6 +1436,7 @@ function showWelcome() {
 
 // --- Markdown Parser ---
 var md = (function() {
+  var _base = '';
 
   function highlightCode(code, lang) {
     var escaped = escHtml(code);
@@ -1057,7 +1490,12 @@ var md = (function() {
 
   function inlineFormat(text) {
     // Images
-    text = text.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, '<img src="$2" alt="$1" loading="lazy">');
+    text = text.replace(/!\\[([^\\]]*)\\]\\(([^)]+)\\)/g, function(m, alt, src) {
+      if (_base && src.indexOf('http') !== 0 && src.charAt(0) !== '/') {
+        src = '/api/image?path=' + encodeURIComponent(_base + '/' + src);
+      }
+      return '<img src="' + src + '" alt="' + alt + '" loading="lazy">';
+    });
     // Links
     text = text.replace(/\\[([^\\]]+)\\]\\(([^)]+)\\)/g, '<a href="$2" target="_blank" rel="noopener">$1</a>');
     // Auto links
@@ -1073,7 +1511,7 @@ var md = (function() {
     // Highlight
     text = text.replace(/==(.+?)==/g, '<mark>$1</mark>');
     // Inline code
-    text = text.replace(/\`([^\`]+)\`/g, '<code>$1</code>');
+    text = text.replace(/\`([^\`]+)\`/g, function(m, c) { return '<code>' + escHtml(c) + '</code>'; });
     // Footnote refs
     text = text.replace(/\\[\\^(\\d+)\\]/g, '<sup class="footnote-ref"><a href="#fn$1" id="fnref$1">[$1]</a></sup>');
     return text;
@@ -1265,7 +1703,7 @@ var md = (function() {
     return html;
   }
 
-  return { parse: parse };
+  return { parse: parse, setBase: function(dir) { _base = dir; } };
 })();
 
 // --- Raw Text Renderer ---
@@ -1355,9 +1793,15 @@ $btnSource.addEventListener('click', function() {
   }
 });
 
+function toggleSidebar() {
+  var collapsed = $sidebar.classList.toggle('collapsed');
+  $btnSidebar.classList.toggle('collapsed', collapsed);
+}
+
+$btnSidebar.addEventListener('click', toggleSidebar);
+
 $btnTheme.addEventListener('click', function() {
   state.lightMode = !state.lightMode;
-  $btnTheme.classList.toggle('active', state.lightMode);
   document.body.classList.toggle('light-mode', state.lightMode);
   if (mermaidLoaded && window.mermaid) {
     window.mermaid.initialize({ startOnLoad: false, theme: state.lightMode ? 'default' : 'dark' });
@@ -1369,6 +1813,14 @@ $btnHidden.addEventListener('click', function() {
   state.showHidden = !state.showHidden;
   $btnHidden.classList.toggle('active', state.showHidden);
   renderTree();
+});
+
+function openHelp() { $helpOverlay.classList.add('visible'); }
+function closeHelp() { $helpOverlay.classList.remove('visible'); }
+$btnHelp.addEventListener('click', openHelp);
+document.getElementById('help-close').addEventListener('click', closeHelp);
+$helpOverlay.addEventListener('click', function(e) {
+  if (e.target === $helpOverlay) closeHelp();
 });
 
 $btnWrap.addEventListener('click', function() {
@@ -1440,15 +1892,30 @@ document.addEventListener('keydown', function(e) {
   }
   // Escape to clear search
   if (e.key === 'Escape') {
+    if ($helpOverlay.classList.contains('visible')) { closeHelp(); return; }
     $search.value = '';
     state.searchQuery = '';
     $search.blur();
     renderTree();
   }
+  var notTyping = !e.ctrlKey && !e.metaKey && document.activeElement !== $search;
+  if (notTyping) {
+    if (e.key === 'b') toggleSidebar();
+    if (e.key === 't') $btnTheme.click();
+    if (e.key === 's') $btnSource.click();
+    if (e.key === 'w') $btnWrap.click();
+    if (e.key === '?') {
+      if ($helpOverlay.classList.contains('visible')) closeHelp();
+      else openHelp();
+    }
+  }
 });
 
 // --- Init ---
-navigateTo('');
+var INITIAL_FILE_PATH = ${INITIAL_FILE ? JSON.stringify(INITIAL_FILE) : 'null'};
+navigateTo('', INITIAL_FILE_PATH ? function() {
+  openFile(INITIAL_FILE_PATH, INITIAL_FILE_PATH.split('/').pop());
+} : null);
 initMermaid();
 </script>
 </body>
@@ -1467,6 +1934,10 @@ const server = http.createServer(function (req, res) {
     handleList(req, res, parsed.query);
   } else if (pathname === '/api/read') {
     handleRead(req, res, parsed.query);
+  } else if (pathname === '/api/image') {
+    handleImage(req, res, parsed.query);
+  } else if (pathname === '/api/chroot') {
+    handleChroot(req, res, parsed.query);
   } else if (pathname === '/lib/mermaid.min.js') {
     const mermaidPath = path.join(__dirname, 'lib', 'mermaid.min.js');
     if (fs.existsSync(mermaidPath)) {

@@ -33,11 +33,15 @@ Sometimes you just want to **read** your docs — not edit them. VS Code is over
 git clone https://github.com/gonnector/simple-doc-viewer.git
 cd simple-doc-viewer
 
-# Start the viewer for the current directory
+# Browse the current directory
 node server.js
 
-# Or for a specific folder
+# Open a specific folder
 node server.js --root /path/to/your/docs
+
+# Open a specific file directly
+node server.js README.md
+node server.js docs/report.md
 ```
 
 The browser opens automatically. If port 3000 is already in use, the existing process is stopped and restarted.
@@ -51,17 +55,12 @@ The browser opens automatically. If port 3000 is already in use, the existing pr
 | `--no-hidden` | | | Hide dotfiles by default |
 | `--no-open` | | | Don't auto-open browser on start |
 
-### Examples
+You can also pass a **file path** as a positional argument to open it directly:
 
 ```bash
-# Browse your project docs
-node server.js --root ~/my-project
-
-# Use a custom port
-node server.js --port 8080
-
-# Combine options
-node server.js --root ./docs --port 4000 --no-hidden
+node server.js README.md           # open a file in current directory
+node server.js docs/guide.md       # open a file by relative path
+node server.js /absolute/path.md   # open a file by absolute path
 ```
 
 ### Global Alias (Optional)
@@ -71,11 +70,7 @@ Add a shell alias to run it from anywhere:
 **Bash / Zsh** (`~/.bashrc` or `~/.zshrc`):
 ```bash
 sdv() {
-  if [ $# -eq 0 ]; then
-    node /path/to/simple-doc-viewer/server.js
-  else
-    node /path/to/simple-doc-viewer/server.js --root "$1"
-  fi
+  node /path/to/simple-doc-viewer/server.js ${1:+--root "$1"}
 }
 ```
 
@@ -93,17 +88,29 @@ function sdv {
 
 Then use it anywhere:
 ```bash
-sdv              # current directory
-sdv ~/Documents  # specific folder
+sdv                    # current directory
+sdv ~/Documents        # specific folder
+sdv README.md          # open a specific file directly
 ```
 
 ---
 
 ## Features
 
+### Drag & Drop to Open Files
+
+Drag any supported file from your OS file manager directly onto the browser window — SDV catches it and opens it as a tab instantly.
+
+- **Visual feedback**: a dashed overlay appears when you hover a file over the window
+- **Any location**: works with files outside the current browsing root
+- **Instant rendering**: Markdown, code, and plain text all render immediately on drop
+
+> No file dialog. No copy-paste. Just drag and view.
+
 ### File Tree Browser
 
 - Navigate into folders, go up with `..`
+- **Collapsible sidebar** — toggle with `B` key or the arrow button
 - Filter files by name in real time
 - Toggle hidden files (`.git`, `node_modules`, etc.)
 - Extension badges with color coding
@@ -113,7 +120,7 @@ sdv ~/Documents  # specific folder
 
 Full-featured custom Markdown parser (no external libraries):
 
-- Headings (h1-h6) with distinct colors
+- Headings (h1–h6) with distinct colors
 - **Bold**, *italic*, ~~strikethrough~~, `inline code`
 - Ordered / unordered / nested lists (stack-based parser for arbitrary depth)
 - Checklists with checkboxes
@@ -123,7 +130,7 @@ Full-featured custom Markdown parser (no external libraries):
 - `<details>/<summary>` collapsible sections
 - `<kbd>` keyboard tags
 - Horizontal rules
-- Links and images
+- Links and **images** (GIF, PNG, JPG, SVG, WebP — all rendered inline)
 
 ### Syntax Highlighting
 
@@ -161,10 +168,12 @@ Mermaid.js (~2MB) is automatically downloaded on first run and served locally af
 
 ![Theme Toggle](docs/images/theme-toggle.gif)
 
-Toggle between dark and light themes with the **Theme** button. Affects:
+Toggle between dark and light themes with the **sun/moon switch** in the header. Affects:
 - All UI elements (sidebar, content, tabs, buttons)
 - Syntax highlighting colors
 - Mermaid diagram theme (`dark` ↔ `default`)
+
+Keyboard shortcut: `T`
 
 ### Split View
 
@@ -176,6 +185,12 @@ Toggle the **Source** button on Markdown files to see:
 
 Panels scroll in sync (proportional scroll synchronization).
 
+### Status Bar
+
+A subtle status bar at the bottom of the content area shows:
+- **Total line count** of the current file
+- **Scroll position** as a percentage (which part of the document you're reading)
+
 ### Tab System
 
 - Open multiple files as tabs
@@ -183,13 +198,23 @@ Panels scroll in sync (proportional scroll synchronization).
 - Auto-switch to adjacent tab on close
 - Active tab highlight
 
+### Keyboard Shortcuts
+
+| Key | Action |
+|-----|--------|
+| `B` | Toggle sidebar |
+| `T` | Toggle Day/Night theme |
+| `S` | Toggle Split View (Markdown only) |
+| `W` | Toggle word wrap |
+| `?` | Open keyboard shortcuts help |
+
 ---
 
 ## Architecture
 
 ```
 simple-doc-viewer/
-  server.js            # Everything: server + API + frontend (~2100 lines)
+  server.js            # Everything: server + API + frontend (~2300 lines)
   lib/
     mermaid.min.js      # Auto-downloaded on first run
   reference/            # Prototypes and test documents
@@ -202,7 +227,7 @@ simple-doc-viewer/
 Browser (localhost:3000)  <-->  Node.js HTTP Server  <-->  Local Filesystem
 ```
 
-`server.js` serves a single-page application (SPA) as inline HTML. The frontend calls two JSON APIs to browse directories and read files. Everything runs on `127.0.0.1` — no external access.
+`server.js` serves a single-page application (SPA) as inline HTML. The frontend calls JSON APIs to browse directories and read files. Everything runs on `127.0.0.1` — no external access.
 
 ### API Endpoints
 
@@ -211,6 +236,8 @@ Browser (localhost:3000)  <-->  Node.js HTTP Server  <-->  Local Filesystem
 | GET | `/` | — | Serves the SPA frontend |
 | GET | `/api/list` | `path` (directory) | Returns directory listing as JSON |
 | GET | `/api/read` | `path` (file) | Returns file content as JSON |
+| GET | `/api/image` | `path` (image file) | Serves image files (GIF, PNG, JPG, SVG, WebP) |
+| GET | `/api/chroot` | `path` (directory) | Updates server root (used by drag & drop) |
 | GET | `/lib/mermaid.min.js` | — | Serves the Mermaid library |
 
 ---
@@ -233,7 +260,7 @@ Simple Doc Viewer is designed for **local use only**:
 ## Supported File Types
 
 ### Rendered
-- `.md` — Markdown with full rendering + Mermaid diagrams
+- `.md` — Markdown with full rendering + Mermaid diagrams + inline images
 
 ### Syntax Highlighted
 - `.js`, `.ts` — JavaScript / TypeScript
@@ -257,8 +284,7 @@ Simple Doc Viewer is designed for **local use only**:
 ## Roadmap
 
 - [ ] **v0.6**: LaTeX math rendering (KaTeX)
-- [ ] Image preview support
-- [ ] File search across directories
+- [ ] Full-text search across files in a directory
 
 ---
 

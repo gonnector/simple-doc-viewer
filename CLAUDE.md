@@ -5,7 +5,7 @@
 로컬 파일시스템의 텍스트/마크다운 문서를 브라우저에서 탐색하고 열람하는 경량 문서 뷰어.
 Node.js 단일 파일(`server.js`)로 구현, npm 의존성 0개.
 
-## 현재 버전: v0.51
+## 현재 버전: v0.52
 
 ### 핵심 기능
 - 파일 트리 탐색 (폴더 진입, 상위 이동, hidden 토글)
@@ -17,6 +17,9 @@ Node.js 단일 파일(`server.js`)로 구현, npm 의존성 0개.
 - 탭 시스템 (다중 파일 열기, 전환, 닫기)
 - 검색/필터 (파일명 부분 매칭)
 - 스마트 시작 (포트 충돌 자동 해결 + 브라우저 자동 열기)
+- **파일 드래그 앤 드롭** (OS 탐색기 → 브라우저 창, 루트 외 파일도 지원)
+- **CLI 파일 직접 열기** (`node server.js README.md` 형태)
+- **마크다운 인라인 이미지** (상대 경로 해석 + `/api/image` 서빙)
 
 ## 프로젝트 구조
 
@@ -34,9 +37,9 @@ simple-doc-viewer/
 
 ### Template Literal 제약 (가장 중요)
 `getHTML()` 함수가 template literal(\`...\`)로 전체 HTML을 반환하므로,
-클라이언트 JS에서 **backtick(\`)과 `${}`를 절대 사용 불가**.
-반드시 **single quote + 문자열 연결**만 사용.
+클라이언트 JS 코드 전체에 다음 규칙이 적용된다.
 
+**1. backtick · `${}` 금지 — single quote + 문자열 연결만 사용**
 ```javascript
 // 금지
 var html = `<div class="${cls}">`;
@@ -44,14 +47,49 @@ var html = `<div class="${cls}">`;
 var html = '<div class="' + cls + '">';
 ```
 
-### server.js 내부 구조 (약 2100줄)
+**2. 이스케이프 시퀀스 이중 이스케이프 필수**
+
+Node.js가 template literal을 평가할 때 `\n`, `\t` 등을 실제 문자로 변환하므로,
+브라우저에 `\n`을 전달하려면 server.js 소스에 `\\n`으로 작성해야 한다.
+
+| server.js 소스 | 브라우저 수신 | 용도 |
+|----------------|--------------|------|
+| `'\\n'` | `'\n'` | 줄바꿈 문자 |
+| `'\\t'` | `'\t'` | 탭 문자 |
+| `/\\.([^.]+)/` | `/\.([^.]+)/` | regex 이스케이프 |
+| `'\\\\path'` | `'\\path'` | 백슬래시 리터럴 |
+
+```javascript
+// 금지 (Node.js가 \n을 개행으로 변환 → JS 구문 오류)
+data.content.split('\n')
+
+// 허용
+data.content.split('\\n')
+```
+
+**3. 변경 후 검증 — served JS 문법 확인**
+```bash
+node -e "
+const http = require('http');
+http.get('http://localhost:3000/', (res) => {
+  let d = ''; res.on('data', c => d += c);
+  res.on('end', () => {
+    const m = d.match(/<script>([\s\S]*?)<\/script>/);
+    if (m) { try { new Function(m[1]); console.log('JS OK'); }
+             catch(e) { console.log('JS ERROR:', e.message); } }
+  });
+});
+"
+```
+
+### server.js 내부 구조 (약 2300줄)
 | 섹션 | 라인 범위 | 설명 |
 |------|-----------|------|
-| 모듈 & 설정 | 1-52 | 포트, 루트, 확장자 목록 |
+| 모듈 & 설정 | 1-52 | 포트, 루트, 확장자 목록, INITIAL_FILE 파싱 |
 | 유틸리티 함수 | 54-75 | 텍스트 판별, 경로 검증, JSON 응답 |
 | Mermaid 다운로더 | 77-110 | HTTPS redirect following |
-| API 핸들러 | 112-178 | /api/list, /api/read |
-| HTML 프론트엔드 | 180~ | getHTML() — CSS, Body, Client JS |
+| API 핸들러 | 112-260 | /api/list, /api/read, /api/image, /api/chroot |
+| HTML 프론트엔드 | 260~ | getHTML() — CSS, Body, Client JS |
 | 서버 시작 | 마지막 | createServer, 라우팅, listen |
 
 ### API 엔드포인트
@@ -60,6 +98,8 @@ var html = '<div class="' + cls + '">';
 | GET | `/` | 프론트엔드 SPA 서빙 |
 | GET | `/api/list?path=...` | 디렉토리 목록 (JSON) |
 | GET | `/api/read?path=...` | 파일 내용 읽기 (JSON) |
+| GET | `/api/image?path=...` | 이미지 파일 서빙 (GIF, PNG, JPG, SVG, WebP) |
+| GET | `/api/chroot?path=...` | 서버 루트 변경 (드래그 앤 드롭용) |
 | GET | `/lib/mermaid.min.js` | Mermaid 라이브러리 |
 
 ### 보안
@@ -82,7 +122,12 @@ node server.js
 # 특정 폴더 지정
 node server.js --root /path/to/docs
 
+# 파일 직접 열기 (v0.52+)
+node server.js README.md
+node server.js docs/report.md
+
 # 글로벌 alias (sdv) 설정 완료 시
 sdv              # 현재 폴더
 sdv /path/to/docs  # 특정 폴더
+sdv README.md    # 파일 직접 열기
 ```
