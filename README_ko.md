@@ -93,6 +93,22 @@ sdv ~/Documents        # 특정 폴더
 sdv README.md          # 파일 직접 열기
 ```
 
+### Windows 탐색기 컨텍스트 메뉴 (선택)
+
+Windows 파일 탐색기에서 우클릭으로 SDV를 바로 실행할 수 있습니다:
+
+```bash
+# 설치 (1회)
+node install-context-menu.js
+
+# 제거
+node install-context-menu.js --uninstall
+```
+
+설치 후 파일 탐색기에서 아무 파일이나 우클릭 → **"SDV로 읽기"**를 선택하면 SDV가 해당 파일의 폴더를 루트로 서버를 시작합니다. 이미 서버가 실행 중이면 기존 서버를 종료하고 새로 시작합니다.
+
+접근 로그는 `~/.sdv/access.jsonl`에 저장되어 어떤 파일 형식이 자주 열리는지 추적할 수 있습니다.
+
 ---
 
 ## 주요 기능

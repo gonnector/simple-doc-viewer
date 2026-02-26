@@ -93,6 +93,22 @@ sdv ~/Documents        # specific folder
 sdv README.md          # open a specific file directly
 ```
 
+### Windows Explorer Context Menu (Optional)
+
+Add a right-click menu item to open any file with SDV directly from Windows Explorer:
+
+```bash
+# Install (one-time)
+node install-context-menu.js
+
+# Uninstall
+node install-context-menu.js --uninstall
+```
+
+After installation, right-click any file in Explorer and select **"SDV로 읽기"** to open it in SDV. The launcher checks if a server is already running, stops it if needed, and starts a fresh instance with the file's directory as root.
+
+Access logs are saved to `~/.sdv/access.jsonl` for tracking which file types are commonly opened.
+
 ---
 
 ## Features

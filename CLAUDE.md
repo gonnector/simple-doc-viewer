@@ -5,7 +5,7 @@
 로컬 파일시스템의 텍스트/마크다운 문서를 브라우저에서 탐색하고 열람하는 경량 문서 뷰어.
 Node.js 단일 파일(`server.js`)로 구현, npm 의존성 0개.
 
-## 현재 버전: v0.52
+## 현재 버전: v0.53
 
 ### 핵심 기능
 - 파일 트리 탐색 (폴더 진입, 상위 이동, hidden 토글)
@@ -25,12 +25,15 @@ Node.js 단일 파일(`server.js`)로 구현, npm 의존성 0개.
 
 ```
 simple-doc-viewer/
-  server.js          <- 단일 파일 (Node.js 내장 모듈만 사용)
+  server.js                  <- 단일 파일 (Node.js 내장 모듈만 사용)
+  launcher.js                <- 컨텍스트 메뉴 런처 (서버 체크/kill/재시작/로깅)
+  install-context-menu.js    <- Windows 컨텍스트 메뉴 등록/해제
+  sdv-open.vbs               <- (생성됨) 콘솔 숨김 래퍼
   lib/
-    mermaid.min.js    <- 첫 실행 시 CDN에서 자동 다운로드
-  reference/          <- 프로토타입 및 테스트 문서
-  docs/               <- 설계 문서, 개발 일지
-  PRD.md              <- 요구사항 정의서
+    mermaid.min.js            <- 첫 실행 시 CDN에서 자동 다운로드
+  reference/                  <- 프로토타입 및 테스트 문서
+  docs/                       <- 설계 문서, 개발 일지
+  PRD.md                      <- 요구사항 정의서
 ```
 
 ## 기술 제약
