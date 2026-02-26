@@ -41,7 +41,10 @@ function generateVbs() {
     'CreateObject("WScript.Shell").Run Chr(34) & "' + nodePath + '" & Chr(34) & " " & Chr(34) & "' + launcherPath + '" & Chr(34) & " " & Chr(34) & WScript.Arguments(0) & Chr(34), 0, False'
   ];
 
-  fs.writeFileSync(VBS_PATH, lines.join('\r\n') + '\r\n', 'utf-8');
+  // UTF-16 LE BOM으로 작성 (경로에 비ASCII 문자 포함 시 wscript.exe 호환)
+  var bom = Buffer.from([0xFF, 0xFE]);
+  var body = Buffer.from(lines.join('\r\n') + '\r\n', 'utf16le');
+  fs.writeFileSync(VBS_PATH, Buffer.concat([bom, body]));
   console.log('[OK] sdv-open.vbs generated: ' + toWinPath(VBS_PATH));
 }
 
