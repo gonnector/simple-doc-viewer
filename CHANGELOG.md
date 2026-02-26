@@ -6,11 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
-## [Unreleased]
+## [0.53] - 2026-02-26
 
 ### Added
-- **launcher.js** — CLI 런처 스크립트; 파일 경로를 인자로 받아 확장자 검증 후 SDV 서버를 (재)시작; 지원/비지원 파일 접근을 `~/.sdv/access.jsonl`에 로깅
-- **install-context-menu.js** — Windows 우클릭 컨텍스트 메뉴 "SDV로 읽기" 등록/해제 스크립트; `sdv-open.vbs`를 자동 생성하고 HKCU 레지스트리에 등록 (`--uninstall`로 제거)
+- **Windows Explorer 컨텍스트 메뉴** — 파일 우클릭 → "SDV로 읽기"로 바로 열기
+  - `install-context-menu.js` — 레지스트리 등록/해제 (`--uninstall` 지원)
+  - `launcher.js` — 서버 상태 확인 → kill → 재시작 자동 처리
+  - `~/.sdv/access.jsonl` — 파일 접근 로그 (지원/미지원 확장자 추적)
 
 ### Fixed
 - **동명 파일 드래그 시 잘못된 내용 표시** — FileReader 경로(URI 미제공 환경)로 드래그할 때 같은 이름의 다른 파일이 기존 탭 내용을 그대로 보여주던 버그 수정; 드래그 시 캐시를 새 내용으로 갱신하도록 변경
