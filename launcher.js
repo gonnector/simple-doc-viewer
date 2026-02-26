@@ -51,7 +51,7 @@ function isTextFile(filePath) {
 
 function getExt(filePath) {
   var ext = path.extname(filePath).toLowerCase();
-  return ext || '';
+  return ext || '(none)';
 }
 
 function appendLog(entry) {
@@ -123,7 +123,8 @@ function findAndKillPort(port, callback) {
 function startServer(filePath) {
   var child = spawn(process.execPath, [SERVER_JS, filePath], {
     detached: true,
-    stdio: 'ignore'
+    stdio: 'ignore',
+    cwd: __dirname
   });
   child.unref();
 }
@@ -169,7 +170,7 @@ function main() {
   if (!isTextFile(filePath)) {
     console.error('Unsupported file type: ' + ext + ' (' + filePath + ')');
     logReject(filePath, ext, 'unsupported');
-    process.exit(1);
+    process.exit(0);
   }
 
   // 지원되는 파일 — OPEN 로그
