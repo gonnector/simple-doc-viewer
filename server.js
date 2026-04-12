@@ -74,12 +74,15 @@ const MEDIA_EXTENSIONS = new Set([
   // Video
   'mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv',
   // Audio
-  'mp3', 'wav', 'flac', 'aac', 'opus', 'wma', 'm4a'
+  'mp3', 'wav', 'flac', 'aac', 'opus', 'wma', 'm4a',
+  // Document
+  'pdf'
 ]);
 
 const IMAGE_EXTS = new Set(['png', 'jpg', 'jpeg', 'gif', 'svg', 'webp', 'bmp', 'ico', 'tiff', 'tif', 'avif']);
 const VIDEO_EXTS = new Set(['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv']);
 const AUDIO_EXTS = new Set(['mp3', 'wav', 'flac', 'aac', 'opus', 'wma', 'm4a']);
+const DOC_EXTS = new Set(['pdf']);
 
 const HIDDEN_NAMES = new Set([
   'node_modules', '.git', '.svn', '.hg', '.DS_Store',
@@ -751,6 +754,9 @@ function getHTML() {
   .media-viewer video { max-width: 100%; max-height: calc(100vh - 180px); border-radius: 6px; outline: none; transform-origin: center center; transition: transform 0.15s ease; }
   .media-viewer audio { width: 100%; max-width: 500px; margin-top: 40px; }
   .media-viewer .media-info { font-size: 11px; color: var(--text-dim); margin-top: 8px; flex-shrink: 0; }
+  .media-viewer iframe.pdf-frame { width: 100%; height: 100%; flex: 1; border: none; border-radius: 0; }
+  .media-viewer.pdf-mode { padding: 0; gap: 0; }
+  .media-viewer.pdf-mode .media-content { height: 100%; }
   .media-zoom-bar {
     position: absolute; bottom: 12px; right: 16px;
     display: flex; align-items: center; gap: 6px;
@@ -1042,7 +1048,7 @@ function getHTML() {
         <div class="help-keys"><kbd class="help-kbd">T</kbd></div>
       </div>
       <div class="help-row">
-        <span class="help-desc">Toggle markdown source</span>
+        <span class="help-desc">Cycle view: Preview / Split / Source</span>
         <div class="help-keys"><kbd class="help-kbd">S</kbd></div>
       </div>
       <div class="help-row">
@@ -1050,7 +1056,7 @@ function getHTML() {
         <div class="help-keys"><kbd class="help-kbd">W</kbd></div>
       </div>
       <div class="help-row">
-        <span class="help-desc">Export to PDF</span>
+        <span class="help-desc">Print</span>
         <div class="help-keys"><kbd class="help-kbd">P</kbd></div>
       </div>
     </div>
@@ -1098,9 +1104,9 @@ function getHTML() {
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 .278a.77.77 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
       </span>
     </button>
-    <button class="header-btn" id="btn-source" title="Toggle markdown source view">Source</button>
+    <button class="header-btn" id="btn-source" title="Toggle view mode (S)">Preview</button>
     <button class="header-btn" id="btn-wrap" title="Toggle word wrap">Wrap</button>
-    <button class="header-btn" id="btn-pdf" title="Export to PDF (P)">PDF</button>
+    <button class="header-btn" id="btn-pdf" title="Print (P)">Print</button>
     <button class="btn-help" id="btn-help" title="Keyboard shortcuts (?)">?</button>
   </div>
 </div>
@@ -1166,7 +1172,7 @@ var state = {
   showHidden: false,
   wordWrap: false,
   lightMode: false,
-  showSource: false,
+  viewMode: 'preview',  // 'preview' | 'split' | 'source'
   searchQuery: '',
   sortBy: 'name',
   sortAsc: true,
@@ -1262,7 +1268,8 @@ function getIcon(name, isDir) {
     png: '\\ud83d\\uddbc', jpg: '\\ud83d\\uddbc', jpeg: '\\ud83d\\uddbc', gif: '\\ud83d\\uddbc',
     webp: '\\ud83d\\uddbc', bmp: '\\ud83d\\uddbc', ico: '\\ud83d\\uddbc', avif: '\\ud83d\\uddbc',
     mp4: '\\ud83c\\udfac', webm: '\\ud83c\\udfac', mov: '\\ud83c\\udfac', avi: '\\ud83c\\udfac', mkv: '\\ud83c\\udfac', ogg: '\\ud83c\\udfac',
-    mp3: '\\ud83c\\udfb5', wav: '\\ud83c\\udfb5', flac: '\\ud83c\\udfb5', aac: '\\ud83c\\udfb5', opus: '\\ud83c\\udfb5', m4a: '\\ud83c\\udfb5', wma: '\\ud83c\\udfb5'
+    mp3: '\\ud83c\\udfb5', wav: '\\ud83c\\udfb5', flac: '\\ud83c\\udfb5', aac: '\\ud83c\\udfb5', opus: '\\ud83c\\udfb5', m4a: '\\ud83c\\udfb5', wma: '\\ud83c\\udfb5',
+    pdf: '\\ud83d\\udcc4'
   };
   return map[ext] || '\\ud83d\\udcc4';
 }
@@ -1282,7 +1289,8 @@ function getBadgeColor(ext) {
     mp4: 'var(--badge-video)', webm: 'var(--badge-video)', mov: 'var(--badge-video)',
     avi: 'var(--badge-video)', mkv: 'var(--badge-video)', ogg: 'var(--badge-video)',
     mp3: 'var(--badge-audio)', wav: 'var(--badge-audio)', flac: 'var(--badge-audio)',
-    aac: 'var(--badge-audio)', opus: 'var(--badge-audio)', m4a: 'var(--badge-audio)', wma: 'var(--badge-audio)'
+    aac: 'var(--badge-audio)', opus: 'var(--badge-audio)', m4a: 'var(--badge-audio)', wma: 'var(--badge-audio)',
+    pdf: '#f40f02'
   };
   return map[ext] || 'var(--badge-text)';
 }
@@ -1640,8 +1648,9 @@ function doDelete(filePath, fileName) {
 var MEDIA_IMG = { png:1, jpg:1, jpeg:1, gif:1, svg:1, webp:1, bmp:1, ico:1, tiff:1, tif:1, avif:1 };
 var MEDIA_VID = { mp4:1, webm:1, ogg:1, mov:1, avi:1, mkv:1 };
 var MEDIA_AUD = { mp3:1, wav:1, flac:1, aac:1, opus:1, wma:1, m4a:1 };
+var MEDIA_DOC = { pdf:1 };
 
-function isMediaExt(ext) { return !!(MEDIA_IMG[ext] || MEDIA_VID[ext] || MEDIA_AUD[ext]); }
+function isMediaExt(ext) { return !!(MEDIA_IMG[ext] || MEDIA_VID[ext] || MEDIA_AUD[ext] || MEDIA_DOC[ext]); }
 
 function openFile(filePath, fileName, directContent) {
   // Already open?
@@ -1803,8 +1812,8 @@ function renderContent(preserveScroll) {
   // Media files — render directly without text content
   if (isMediaExt(tab.ext)) {
     var mediaSrc = '/api/media?path=' + encodeURIComponent(state.activeTab);
-    var showZoom = !!(MEDIA_IMG[tab.ext] || MEDIA_VID[tab.ext]);
-    var mediaHtml = '<div class="media-viewer">';
+    var showZoom = !!(MEDIA_IMG[tab.ext] || MEDIA_VID[tab.ext]) && !MEDIA_DOC[tab.ext];
+    var mediaHtml = '<div class="media-viewer' + (MEDIA_DOC[tab.ext] ? ' pdf-mode' : '') + '">';
     mediaHtml += '<div class="media-content">';
     if (MEDIA_IMG[tab.ext]) {
       mediaHtml += '<img id="media-target" src="' + mediaSrc + '" alt="' + escHtml(tab.name) + '">';
@@ -1812,6 +1821,8 @@ function renderContent(preserveScroll) {
       mediaHtml += '<video id="media-target" src="' + mediaSrc + '" controls preload="metadata"></video>';
     } else if (MEDIA_AUD[tab.ext]) {
       mediaHtml += '<audio src="' + mediaSrc + '" controls preload="metadata"></audio>';
+    } else if (MEDIA_DOC[tab.ext]) {
+      mediaHtml += '<iframe class="pdf-frame" src="' + mediaSrc + '"></iframe>';
     }
     mediaHtml += '</div>';
     if (showZoom) {
@@ -1856,7 +1867,7 @@ function renderContent(preserveScroll) {
     var _filePath = state.activeTab || '';
     var _lastSlash = _filePath.lastIndexOf('/');
     md.setBase(_lastSlash >= 0 ? _filePath.substring(0, _lastSlash) : '');
-    if (state.showSource) {
+    if (state.viewMode === 'split') {
       $content.innerHTML = '<div class="md-split">'
         + '<div class="md-source-panel">'
         + '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">'
@@ -1867,11 +1878,37 @@ function renderContent(preserveScroll) {
         + '</div></div>';
       if (!preserveScroll) $content.scrollTop = 0;
       setupSplitSync();
+    } else if (state.viewMode === 'source') {
+      $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, 'md') + '</div>';
+      if (!preserveScroll) $content.scrollTop = 0;
     } else {
       $content.innerHTML = '<div class="md-rendered">' + md.parse(data.content) + '</div>';
       if (!preserveScroll) $content.scrollTop = 0;
     }
     renderMermaidBlocks();
+  } else if (data.ext === 'html' || data.ext === 'htm') {
+    if (state.viewMode === 'split') {
+      $content.innerHTML = '<div class="md-split">'
+        + '<div class="md-source-panel">'
+        + '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">'
+        + renderRaw(data.content, data.ext)
+        + '</div></div>'
+        + '<div class="md-render-panel" style="padding:0">'
+        + '<iframe id="html-preview" style="width:100%;height:100%;border:none;background:#fff"></iframe>'
+        + '</div></div>';
+      setupSplitSync();
+    } else if (state.viewMode === 'source') {
+      $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';
+    } else {
+      $content.innerHTML = '<iframe id="html-preview" style="width:100%;height:100%;border:none;background:#fff"></iframe>';
+    }
+    var hf = document.getElementById('html-preview');
+    if (hf) {
+      hf.contentDocument.open();
+      hf.contentDocument.write(data.content);
+      hf.contentDocument.close();
+    }
+    if (!preserveScroll) $content.scrollTop = 0;
   } else {
     $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';
     if (!preserveScroll) $content.scrollTop = 0;
@@ -2374,16 +2411,23 @@ function setupSplitSync() {
   });
 }
 
-$btnSource.addEventListener('click', function() {
-  state.showSource = !state.showSource;
-  $btnSource.classList.toggle('active', state.showSource);
+var viewModes = ['preview', 'split', 'source'];
+var viewModeLabels = { preview: 'Preview', split: 'Split', source: 'Source' };
+
+function cycleViewMode() {
+  var idx = viewModes.indexOf(state.viewMode);
+  state.viewMode = viewModes[(idx + 1) % 3];
+  $btnSource.textContent = viewModeLabels[state.viewMode];
+  $btnSource.classList.toggle('active', state.viewMode !== 'preview');
   if (state.activeTab) {
     var tab = state.tabCache[state.activeTab];
-    if (tab && tab.data && tab.data.ext === 'md') {
+    if (tab && tab.data && (tab.data.ext === 'md' || tab.data.ext === 'html' || tab.data.ext === 'htm')) {
       renderContent(true);
     }
   }
-});
+}
+
+$btnSource.addEventListener('click', cycleViewMode);
 
 var _savedSidebarWidth = null;
 function toggleSidebar() {
@@ -2807,7 +2851,7 @@ document.addEventListener('keydown', function(e) {
   if (notTyping) {
     if (e.key === 'b') toggleSidebar();
     if (e.key === 't') $btnTheme.click();
-    if (e.key === 's') $btnSource.click();
+    if (e.key === 's') cycleViewMode();
     if (e.key === 'w') $btnWrap.click();
     if (e.key === 'p') document.getElementById('btn-pdf').click();
     if (e.key === 'F2') {
@@ -2889,7 +2933,8 @@ const server = http.createServer(function (req, res) {
       png:'image/png', jpg:'image/jpeg', jpeg:'image/jpeg', gif:'image/gif', svg:'image/svg+xml',
       webp:'image/webp', bmp:'image/bmp', ico:'image/x-icon', tiff:'image/tiff', tif:'image/tiff', avif:'image/avif',
       mp4:'video/mp4', webm:'video/webm', ogg:'video/ogg', mov:'video/quicktime', avi:'video/x-msvideo', mkv:'video/x-matroska',
-      mp3:'audio/mpeg', wav:'audio/wav', flac:'audio/flac', aac:'audio/aac', opus:'audio/opus', wma:'audio/x-ms-wma', m4a:'audio/mp4'
+      mp3:'audio/mpeg', wav:'audio/wav', flac:'audio/flac', aac:'audio/aac', opus:'audio/opus', wma:'audio/x-ms-wma', m4a:'audio/mp4',
+      pdf:'application/pdf'
     };
     const mime = mimeMap[ext];
     if (!mime) return sendError(res, 'Unsupported media type');
