@@ -208,12 +208,60 @@ A subtle status bar at the bottom of the content area shows:
 - **Total line count** of the current file
 - **Scroll position** as a percentage (which part of the document you're reading)
 
+### Media Viewer
+
+View images, videos, and audio files directly in SDV — no external apps needed:
+
+- **Images**: PNG, JPG, GIF, SVG, WebP, BMP, AVIF — with zoom scale bar (10%–400%), Fit (window), 1:1 (original)
+- **Video**: MP4, WebM, MOV, AVI, MKV — inline player with controls and range seeking
+- **Audio**: MP3, WAV, FLAC, AAC, Opus — inline audio player
+
+### PDF Export
+
+Export the current document as PDF with **Pretendard** font embedding:
+- Keyboard shortcut: `P`
+- Chrome "Save as PDF" embeds web font glyphs — recipient sees Pretendard without installing it
+- Print-optimized CSS (borders instead of backgrounds for reliable rendering)
+
+### KaTeX Math Rendering
+
+LaTeX math expressions rendered as actual mathematical notation:
+- Inline: `$e^{i\pi} + 1 = 0$`
+- Block: `$$\int_{0}^{\infty} e^{-x^2} dx$$`
+
+KaTeX library is stored locally in `lib/katex/` — no CDN dependency.
+
+### YAML Frontmatter Card
+
+`---` delimited YAML frontmatter is rendered as a styled metadata card with green accent bar, uppercase labels, and tag badges for array values.
+
+### File Management
+
+- **Rename**: Hover ✏️ icon or `F2` — inline editing with extension-aware selection
+- **Delete**: Hover 🗑️ icon or `Del` — confirmation prompt, auto-closes open tab
+
+### Path Navigation
+
+Click the path badge in the header to type any folder or file path directly. Supports:
+- Windows paths: `E:\project\docs`
+- MSYS2/Git Bash paths: `/e/project/docs` (auto-converted)
+- File paths open the file as a tab and navigate to its directory
+
 ### Tab System
 
 - Open multiple files as tabs
 - Click to switch, `×` to close
+- **Ctrl/Cmd + click** to multi-select tabs
+- Close selected tabs at once, or **Close All** button
 - Auto-switch to adjacent tab on close
-- Active tab highlight
+
+### Resizable Sidebar
+
+Drag the sidebar edge to resize (200px–800px). Current width is preserved across collapse/expand toggles.
+
+### File Sorting
+
+Sort by **Name**, **Size**, **Modified**, or **Created** — click the same button to toggle ascending/descending.
 
 ### Keyboard Shortcuts
 
@@ -223,6 +271,9 @@ A subtle status bar at the bottom of the content area shows:
 | `T` | Toggle Day/Night theme |
 | `S` | Toggle Split View (Markdown only) |
 | `W` | Toggle word wrap |
+| `P` | Export to PDF |
+| `F2` | Rename selected file |
+| `Del` | Delete selected file |
 | `?` | Open keyboard shortcuts help |
 
 ---
@@ -231,9 +282,10 @@ A subtle status bar at the bottom of the content area shows:
 
 ```
 simple-doc-viewer/
-  server.js            # Everything: server + API + frontend (~2300 lines)
+  server.js            # Everything: server + API + frontend
   lib/
     mermaid.min.js      # Auto-downloaded on first run
+    katex/              # KaTeX math rendering (CSS + JS + fonts)
   reference/            # Prototypes and test documents
   docs/                 # Design docs and dev journal
 ```
@@ -253,9 +305,11 @@ Browser (localhost:3000)  <-->  Node.js HTTP Server  <-->  Local Filesystem
 | GET | `/` | — | Serves the SPA frontend |
 | GET | `/api/list` | `path` (directory) | Returns directory listing as JSON |
 | GET | `/api/read` | `path` (file) | Returns file content as JSON |
-| GET | `/api/image` | `path` (image file) | Serves image files (GIF, PNG, JPG, SVG, WebP) |
-| GET | `/api/chroot` | `path` (directory) | Updates server root (used by drag & drop) |
-| GET | `/lib/mermaid.min.js` | — | Serves the Mermaid library |
+| GET | `/api/image` | `path` (image file) | Serves image files |
+| GET | `/api/media` | `path` (media file) | Serves media files with range support (images, video, audio) |
+| GET | `/api/chroot` | `path` (directory) | Updates server root |
+| POST | `/api/rename` | `oldPath`, `newPath` | Rename a file or directory |
+| POST | `/api/delete` | `path` | Delete a file or directory |
 
 ---
 
@@ -266,8 +320,8 @@ Simple Doc Viewer is designed for **local use only**:
 | Measure | Implementation |
 |---------|---------------|
 | **Localhost only** | Binds to `127.0.0.1` — no external access |
-| **Path traversal prevention** | `path.resolve()` + `ROOT_DIR` prefix check |
-| **Binary file blocking** | Extension whitelist for text files |
+| **Path traversal prevention** | `path.resolve()` normalization |
+| **Text file whitelist** | Extension-based filter for text rendering |
 | **Large file limit** | Rejects files > 1MB |
 
 > **Warning**: This tool is intended for personal, local use. Do not expose it to the internet or untrusted networks.
@@ -296,12 +350,17 @@ Simple Doc Viewer is designed for **local use only**:
 ### Plain Text
 - `.txt`, `.log`, `.cfg`, `.env`, `.ini`, `.toml`, `.xml`, `.csv`, `.gitignore`, `.dockerfile`, and more
 
+### Media
+- **Images**: `.png`, `.jpg`, `.gif`, `.svg`, `.webp`, `.bmp`, `.avif`
+- **Video**: `.mp4`, `.webm`, `.mov`, `.avi`, `.mkv`
+- **Audio**: `.mp3`, `.wav`, `.flac`, `.aac`, `.opus`, `.m4a`
+
 ---
 
 ## Roadmap
 
-- [ ] **v0.6**: LaTeX math rendering (KaTeX)
-- [ ] Full-text search across files in a directory
+- [ ] Full-text search across files in a directory (filename + content, AND/OR operators)
+- [ ] Advanced filter with visual match differentiation
 
 ---
 

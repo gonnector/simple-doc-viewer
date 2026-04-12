@@ -107,8 +107,11 @@ done
 - [MDN Web Docs](https://developer.mozilla.org)
 - 자동 링크: https://www.example.com
 
-### 이미지
-![Placeholder 이미지](https://via.placeholder.com/600x200/4A90D9/ffffff?text=Markdown+Rendering+Test)
+### 이미지 (로컬)
+![SDV 테마 토글](../docs/images/theme-toggle.gif)
+
+### 이미지 (외부 URL)
+![Octocat](https://github.githubassets.com/images/icons/emoji/octocat.png)
 
 ---
 
