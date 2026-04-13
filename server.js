@@ -413,6 +413,34 @@ function handleChroot(req, res, query) {
   }
 }
 
+function handlePickFolder(req, res) {
+  var cmd;
+  if (process.platform === 'win32') {
+    var tmpVbs = path.join(require('os').tmpdir(), '_sdv_pick.vbs');
+    var initPath = ROOT_DIR.replace(/\//g, '\\');
+    fs.writeFileSync(tmpVbs,
+      'Set s = CreateObject("Shell.Application")\r\n'
+      + 'Set f = s.BrowseForFolder(0, "Select folder for SDV", &H50, "' + initPath + '")\r\n'
+      + 'If Not f Is Nothing Then\r\n'
+      + '  WScript.Echo f.Self.Path\r\n'
+      + 'End If\r\n');
+    cmd = 'cscript //nologo "' + tmpVbs + '"';
+  } else if (process.platform === 'darwin') {
+    cmd = 'osascript -e \'set f to choose folder with prompt "Select folder" default location POSIX file "' + ROOT_DIR + '"\' -e \'POSIX path of f\'';
+  } else {
+    cmd = 'zenity --file-selection --directory --filename="' + ROOT_DIR + '/" 2>/dev/null || kdialog --getexistingdirectory "' + ROOT_DIR + '" 2>/dev/null';
+  }
+  exec(cmd, { timeout: 60000 }, function(err, stdout) {
+    var selected = (stdout || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
+    if (!selected) return sendJSON(res, { cancelled: true });
+    try {
+      if (!fs.statSync(selected).isDirectory()) return sendError(res, 'Not a directory');
+      ROOT_DIR = selected;
+      sendJSON(res, { root: ROOT_DIR });
+    } catch(e) { sendError(res, 'Directory not found: ' + e.message, 404); }
+  });
+}
+
 // === [5] HTML 프론트엔드 ===
 function getHTML() {
   return `<!DOCTYPE html>
@@ -524,6 +552,13 @@ function getHTML() {
     transition: border-color 0.15s;
   }
   .path-badge:hover { border-color: var(--border); }
+  .btn-pick-folder {
+    background: none; border: 1px solid transparent; color: var(--text-dim);
+    cursor: pointer; padding: 2px 4px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s;
+  }
+  .btn-pick-folder:hover { color: var(--accent); border-color: var(--border); }
   .path-input {
     font-size: 11px;
     color: var(--text);
@@ -610,6 +645,16 @@ function getHTML() {
   }
   .sidebar-header input:focus { border-color: var(--accent); }
   .sidebar-header input::placeholder { color: var(--text-dim); }
+  .search-wrap { position: relative; }
+  .search-wrap input { width: 100%; padding-right: 26px; }
+  .search-clear {
+    position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+    background: none; border: none; color: var(--text-dim); cursor: pointer;
+    font-size: 11px; width: 20px; height: 20px; border-radius: 3px;
+    display: none; align-items: center; justify-content: center;
+  }
+  .search-clear:hover { color: var(--text); background: var(--hover); }
+  .search-wrap input:not(:placeholder-shown) ~ .search-clear { display: flex; }
 
   .file-tree { flex: 1; overflow-y: auto; padding: 4px 0; }
 
@@ -630,7 +675,7 @@ function getHTML() {
   .tree-item .icon { width: 16px; text-align: center; flex-shrink: 0; font-size: 12px; }
   .tree-item .name { flex: 1; overflow: hidden; text-overflow: ellipsis; }
   .tree-item .file-meta {
-    display: flex; align-items: center; gap: 4px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto;
   }
   .tree-item .badge {
     font-size: 9px;
@@ -678,14 +723,42 @@ function getHTML() {
   }
   .search-snippet mark { background: rgba(255,200,0,0.3); color: var(--text); font-weight: 600; border-radius: 2px; padding: 0 1px; }
   .search-mode-indicator { font-size: 10px; color: var(--accent); padding: 2px 8px; opacity: 0.7; }
+
+  /* In-document find bar */
+  .find-bar {
+    display: none; align-items: center; gap: 6px;
+    background: var(--sidebar-bg); border-bottom: 1px solid var(--border);
+    padding: 6px 12px; font-size: 12px; flex-shrink: 0;
+    justify-content: flex-end;
+  }
+  .find-bar.visible { display: flex; }
+  .find-bar input {
+    background: var(--bg); border: 1px solid var(--border); color: var(--text);
+    padding: 4px 8px; border-radius: 4px; font-size: 12px; outline: none; width: 200px;
+  }
+  .find-bar input:focus { border-color: var(--accent); }
+  .find-bar .find-info { color: var(--text-dim); font-size: 11px; min-width: 50px; text-align: center; }
+  .find-bar button {
+    background: none; border: 1px solid var(--border); color: var(--text-dim);
+    cursor: pointer; width: 24px; height: 24px; border-radius: 4px;
+    display: flex; align-items: center; justify-content: center; font-size: 12px;
+  }
+  .find-bar button:hover { color: var(--text); border-color: var(--text-dim); }
+  .find-bar .find-opt { padding: 2px 6px; width: auto; font-size: 10px; }
+  .find-bar .find-opt.active { color: var(--accent); border-color: var(--accent); background: rgba(88,166,255,0.1); }
+  .find-match { background: rgba(255,200,0,0.3); border-radius: 2px; }
+  .find-match-current { background: rgba(255,140,0,0.6); border-radius: 2px; outline: 2px solid var(--accent); }
   .tree-item.parent-dir { border-bottom: 1px solid var(--border); margin-bottom: 2px; padding-bottom: 5px; }
 
   .tree-item .file-date {
     font-size: 10px; color: var(--text-dim); flex-shrink: 0;
     opacity: 0.6; text-align: right; white-space: nowrap;
   }
-  .tree-item .file-date.modified { min-width: 120px; }
-  .tree-item .file-date.created { min-width: 64px; font-size: 9px; opacity: 0.4; }
+  .tree-item .file-date.modified { min-width: 130px; }
+  .tree-item .file-date.created { min-width: 130px; opacity: 0.5; }
+  .tree-item .file-date .date-label { font-size: 9px; font-weight: 600; opacity: 0.6; margin-right: 3px; }
+  .tree-item .file-date.modified.edited { color: var(--accent); opacity: 0.9; }
+  .tree-item .file-date.modified.edited .date-label { color: var(--accent); opacity: 1; }
   .tree-item .match-count {
     font-size: 9px; padding: 1px 5px; border-radius: 8px;
     background: rgba(88,166,255,0.15); color: var(--accent);
@@ -732,11 +805,12 @@ function getHTML() {
   .filter-active-indicator { color: var(--accent); font-size: 8px; margin-left: 2px; }
 
   .sidebar.narrow .tree-item .size { display: none; }
+  .sidebar.narrow .tree-item .size { display: none; }
   .sidebar.narrow .tree-item .file-date.created { display: none; }
   .sidebar.narrow .tree-item .file-date.modified { min-width: auto; font-size: 9px; }
 
   /* Content area */
-  .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+  .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; position: relative; }
 
   .content-tabs {
     display: flex;
@@ -1078,7 +1152,7 @@ function getHTML() {
 
   /* Sidebar opts row */
   .sidebar-opts {
-    padding: 5px 8px; border-bottom: 1px solid var(--border);
+    padding: 6px 8px; border-bottom: 1px solid var(--border);
     display: flex; gap: 4px; flex-wrap: wrap;
   }
   .sidebar-opts .sort-sep {
@@ -1229,6 +1303,14 @@ function getHTML() {
         <div class="help-keys"><kbd class="help-kbd">S</kbd></div>
       </div>
       <div class="help-row">
+        <span class="help-desc">Find in document</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><kbd class="help-kbd">F</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Next / Previous match</span>
+        <div class="help-keys"><kbd class="help-kbd">S</kbd></div>
+      </div>
+      <div class="help-row">
         <span class="help-desc">Toggle word wrap</span>
         <div class="help-keys"><kbd class="help-kbd">W</kbd></div>
       </div>
@@ -1285,6 +1367,11 @@ function getHTML() {
     </button>
     <h1>SDV - Simple Doc Viewer</h1>
     <span class="path-badge" id="path-badge"></span>
+    <button class="btn-pick-folder" id="btn-pick-folder" title="Open folder picker">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1.5 3.5v9a1 1 0 001 1h11a1 1 0 001-1v-7a1 1 0 00-1-1h-5l-1.5-2h-4.5a1 1 0 00-1 1z"/>
+      </svg>
+    </button>
   </div>
   <div class="header-right">
     <button class="theme-toggle" id="btn-theme" title="Toggle light/dark mode (T)">
@@ -1299,6 +1386,7 @@ function getHTML() {
     <button class="header-btn" id="btn-source" title="Toggle view mode (S)">Preview</button>
     <button class="header-btn" id="btn-wrap" title="Toggle word wrap">Wrap</button>
     <button class="header-btn" id="btn-pdf" title="Print (P)">Print</button>
+    <button class="header-btn" id="btn-find" title="Find in document (Ctrl+F)">Find</button>
     <button class="btn-help" id="btn-help" title="Keyboard shortcuts (?)">?</button>
   </div>
 </div>
@@ -1306,7 +1394,10 @@ function getHTML() {
 <div class="main">
   <div class="sidebar">
     <div class="sidebar-header">
-      <input type="text" id="search-input" placeholder="Search files &amp; content...">
+      <div class="search-wrap">
+        <input type="text" id="search-input" placeholder="Search files &amp; content...">
+        <button class="search-clear" id="search-clear" title="Clear search">&#10005;</button>
+      </div>
     </div>
     <div class="sidebar-opts">
       <button class="sidebar-opt" id="btn-hidden" title="Show hidden files">
@@ -1359,13 +1450,22 @@ function getHTML() {
   <div class="resize-handle" id="resize-handle"></div>
   <div class="content-area">
     <div class="content-tabs" id="tab-bar"></div>
+    <div class="find-bar" id="find-bar">
+      <input type="text" id="find-input" placeholder="Find in document...">
+      <span class="find-info" id="find-info"></span>
+      <button id="find-prev" title="Previous (Shift+Enter)">&#9650;</button>
+      <button id="find-next" title="Next (Enter)">&#9660;</button>
+      <button class="find-opt" id="find-whole" title="Whole word match">W</button>
+      <button id="find-close" title="Close (Esc)">&#10005;</button>
+    </div>
     <div class="content-body" id="content-body">
       <div class="welcome">
         <div class="icon-large">&#128196;</div>
         <h2>SDV - Simple Doc Viewer</h2>
-        <p>Click a file to view its contents</p>
+        <p>Documents, code, images, video, audio, PDF</p>
         <div class="keys">
-          <kbd>.md</kbd><kbd>.js</kbd><kbd>.ts</kbd><kbd>.json</kbd><kbd>.yaml</kbd><kbd>.py</kbd><kbd>.html</kbd><kbd>.css</kbd>
+          <kbd>.md</kbd><kbd>.pdf</kbd><kbd>.html</kbd><kbd>.js</kbd><kbd>.py</kbd><kbd>.json</kbd><kbd>.yaml</kbd><kbd>.sql</kbd>
+          <kbd>.png</kbd><kbd>.jpg</kbd><kbd>.mp4</kbd><kbd>.mp3</kbd><kbd>mermaid</kbd><kbd>KaTeX</kbd><kbd>+70 more</kbd>
         </div>
       </div>
     </div>
@@ -1778,38 +1878,58 @@ function parseQueryClient(q) {
 }
 
 function highlightTerms(text, parsedQ) {
-  // Collect unique terms
   var terms = [];
   for (var i = 0; i < parsedQ.length; i++) {
     for (var j = 0; j < parsedQ[i].length; j++) {
       if (terms.indexOf(parsedQ[i][j]) === -1) terms.push(parsedQ[i][j]);
     }
   }
+  if (terms.length === 0) return escHtml(text);
   terms.sort(function(a, b) { return b.length - a.length; });
 
-  // Find all match positions in original text
+  // Build a list of [start, end] ranges
   var lower = text.toLowerCase();
-  var marks = new Array(text.length);
+  var ranges = [];
   for (var k = 0; k < terms.length; k++) {
     var term = terms[k];
     var pos = 0;
-    while (true) {
+    while (pos <= lower.length - term.length) {
       var idx = lower.indexOf(term, pos);
       if (idx === -1) break;
-      for (var m = idx; m < idx + term.length; m++) marks[m] = true;
+      ranges.push([idx, idx + term.length]);
       pos = idx + 1;
     }
   }
+  if (ranges.length === 0) return escHtml(text);
 
-  // Build highlighted HTML
-  var out = '';
-  var inMark = false;
-  for (var c = 0; c < text.length; c++) {
-    if (marks[c] && !inMark) { out += '<mark>'; inMark = true; }
-    if (!marks[c] && inMark) { out += '</mark>'; inMark = false; }
-    out += escHtml(text.charAt(c));
+  // Merge overlapping ranges
+  ranges.sort(function(a, b) { return a[0] - b[0]; });
+  var merged = [ranges[0]];
+  for (var r = 1; r < ranges.length; r++) {
+    var last = merged[merged.length - 1];
+    if (ranges[r][0] <= last[1]) {
+      if (ranges[r][1] > last[1]) last[1] = ranges[r][1];
+    } else {
+      merged.push(ranges[r]);
+    }
   }
-  if (inMark) out += '</mark>';
+
+  // Build HTML from merged ranges
+  var out = '';
+  var cursor = 0;
+  for (var g = 0; g < merged.length; g++) {
+    // Before match
+    if (merged[g][0] > cursor) {
+      out += escHtml(text.substring(cursor, merged[g][0]));
+    }
+    // Match
+    out += '<mark>' + escHtml(text.substring(merged[g][0], merged[g][1])) + '</mark>';
+    cursor = merged[g][1];
+  }
+  // After last match
+  if (cursor < text.length) {
+    out += escHtml(text.substring(cursor));
+  }
   return out;
 }
 
@@ -1883,11 +2003,14 @@ function renderTree() {
         }
         html += '<span class="badge" style="color:' + sbadgeColor + ';border:1px solid ' + sbadgeColor + '">' + sext + '</span>'
           + (sitem.size !== undefined ? '<span class="size">' + formatSize(sitem.size) + '</span>' : '');
+        var sEdited = sitem.modified && sitem.created && sitem.modified.substring(0,19) > sitem.created.substring(0,19);
         if (sitem.modified) {
-          html += '<span class="file-date modified" title="Modified: ' + formatDateTime(sitem.modified) + '">' + formatDateTime(sitem.modified) + '</span>';
+          html += '<span class="file-date modified' + (sEdited ? ' edited' : '') + '" title="Modified">'
+            + '<span class="date-label">M</span>' + formatDateTime(sitem.modified) + '</span>';
         }
-        if (sitem.created && formatDate(sitem.created) !== formatDate(sitem.modified)) {
-          html += '<span class="file-date created" title="Created: ' + formatDate(sitem.created) + '">' + formatDate(sitem.created) + '</span>';
+        if (sitem.created) {
+          html += '<span class="file-date created" title="Created">'
+            + '<span class="date-label">C</span>' + formatDateTime(sitem.created) + '</span>';
         }
         html += '</span>';
       }
@@ -1935,11 +2058,14 @@ function renderTree() {
       html += '<span class="file-meta">'
         + '<span class="badge" style="color:' + badgeColor + ';border:1px solid ' + badgeColor + '">' + ext + '</span>'
         + (item.size !== undefined ? '<span class="size">' + formatSize(item.size) + '</span>' : '');
+      var isEdited = item.modified && item.created && item.modified.substring(0,19) > item.created.substring(0,19);
       if (item.modified) {
-        html += '<span class="file-date modified" title="Modified: ' + formatDateTime(item.modified) + '">' + formatDateTime(item.modified) + '</span>';
+        html += '<span class="file-date modified' + (isEdited ? ' edited' : '') + '" title="Modified">'
+          + '<span class="date-label">M</span>' + formatDateTime(item.modified) + '</span>';
       }
-      if (item.created && formatDate(item.created) !== formatDate(item.modified)) {
-        html += '<span class="file-date created" title="Created: ' + formatDate(item.created) + '">' + formatDate(item.created) + '</span>';
+      if (item.created) {
+        html += '<span class="file-date created" title="Created">'
+          + '<span class="date-label">C</span>' + formatDateTime(item.created) + '</span>';
       }
       html += '</span>';
     }
@@ -2359,9 +2485,10 @@ function showWelcome() {
   $content.innerHTML = '<div class="welcome">'
     + '<div class="icon-large">&#128196;</div>'
     + '<h2>SDV - Simple Doc Viewer</h2>'
-    + '<p>Click a file to view its contents</p>'
+    + '<p>Documents, code, images, video, audio, PDF</p>'
     + '<div class="keys">'
-    + '<kbd>.md</kbd><kbd>.js</kbd><kbd>.ts</kbd><kbd>.json</kbd><kbd>.yaml</kbd><kbd>.py</kbd><kbd>.html</kbd><kbd>.css</kbd>'
+    + '<kbd>.md</kbd><kbd>.js</kbd><kbd>.py</kbd><kbd>.html</kbd><kbd>.json</kbd><kbd>.yaml</kbd><kbd>.sql</kbd><kbd>.css</kbd>'
+    + '<kbd>.png</kbd><kbd>.jpg</kbd><kbd>.gif</kbd><kbd>.svg</kbd><kbd>.mp4</kbd><kbd>.mp3</kbd><kbd>.pdf</kbd><kbd>+72</kbd>'
     + '</div></div>';
 }
 
@@ -2938,6 +3065,18 @@ $pathBadge.addEventListener('click', function() {
   });
 });
 
+// --- Folder Picker ---
+document.getElementById('btn-pick-folder').addEventListener('click', function() {
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/pick-folder');
+  xhr.timeout = 120000;
+  xhr.onload = function() {
+    var resp = JSON.parse(xhr.responseText);
+    if (resp.root) navigateTo(resp.root);
+  };
+  xhr.send();
+});
+
 $btnTheme.addEventListener('click', function() {
   state.lightMode = !state.lightMode;
   document.body.classList.toggle('light-mode', state.lightMode);
@@ -3189,6 +3328,182 @@ for (var si = 0; si < sortBtns.length; si++) {
   });
 })();
 
+// --- In-document Find ---
+var $findBar = document.getElementById('find-bar');
+var $findInput = document.getElementById('find-input');
+var $findInfo = document.getElementById('find-info');
+var _findMatches = [];
+var _findCurrent = -1;
+var _findWholeWord = false;
+
+function clearFindHighlights() {
+  var marks = $content.querySelectorAll('.find-match, .find-match-current');
+  for (var i = 0; i < marks.length; i++) {
+    var parent = marks[i].parentNode;
+    parent.replaceChild(document.createTextNode(marks[i].textContent), marks[i]);
+    parent.normalize();
+  }
+  _findMatches = [];
+  _findCurrent = -1;
+  $findInfo.textContent = '';
+}
+
+function doFind() {
+  clearFindHighlights();
+  var query = $findInput.value;
+  if (!query) return;
+
+  var lowerQ = query.toLowerCase();
+  // Determine search scope based on view mode
+  var searchRoot = $content.querySelector('.md-rendered') || $content.querySelector('.md-render-panel') || $content.querySelector('.raw-view') || $content;
+  var walker = document.createTreeWalker(searchRoot, NodeFilter.SHOW_TEXT, {
+    acceptNode: function(n) {
+      // Skip SVG, mermaid diagrams, find-bar, style/script elements
+      var p = n.parentElement;
+      while (p && p !== searchRoot) {
+        var tag = p.tagName;
+        if (tag === 'SVG' || tag === 'svg' || tag === 'STYLE' || tag === 'SCRIPT') return NodeFilter.FILTER_REJECT;
+        if (p.classList && (p.classList.contains('mermaid') || p.classList.contains('find-bar'))) return NodeFilter.FILTER_REJECT;
+        p = p.parentElement;
+      }
+      return n.nodeValue.trim().length > 0 ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+    }
+  });
+  var textNodes = [];
+  var node;
+  while (node = walker.nextNode()) {
+    textNodes.push(node);
+  }
+
+  for (var ti = 0; ti < textNodes.length; ti++) {
+    var tNode = textNodes[ti];
+    var text = tNode.nodeValue;
+    var lower = text.toLowerCase();
+    var fragments = [];
+    var lastIdx = 0;
+
+    var searchPos = 0;
+    while (searchPos <= lower.length - lowerQ.length) {
+      var idx = lower.indexOf(lowerQ, searchPos);
+      if (idx === -1) break;
+
+      // Whole word check
+      if (_findWholeWord) {
+        var before = idx > 0 ? lower.charAt(idx - 1) : ' ';
+        var after = idx + lowerQ.length < lower.length ? lower.charAt(idx + lowerQ.length) : ' ';
+        var wordBound = /[\\s.,;:!?()\\[\\]{}\\-\\/'"<>]/.test(before) || /^[\\u3000-\\u9fff\\uac00-\\ud7af]/.test(text.charAt(idx));
+        var wordBoundEnd = /[\\s.,;:!?()\\[\\]{}\\-\\/'"<>]/.test(after) || (idx + lowerQ.length < text.length && /^[\\u3000-\\u9fff\\uac00-\\ud7af]/.test(text.charAt(idx + lowerQ.length)));
+        if (!wordBound || !wordBoundEnd) {
+          searchPos = idx + 1;
+          continue;
+        }
+      }
+
+      if (idx > lastIdx) {
+        fragments.push(document.createTextNode(text.substring(lastIdx, idx)));
+      }
+      var span = document.createElement('span');
+      span.className = 'find-match';
+      span.textContent = text.substring(idx, idx + lowerQ.length);
+      fragments.push(span);
+      _findMatches.push(span);
+      lastIdx = idx + lowerQ.length;
+      searchPos = lastIdx;
+    }
+
+    if (fragments.length > 0) {
+      if (lastIdx < text.length) {
+        fragments.push(document.createTextNode(text.substring(lastIdx)));
+      }
+      var parent = tNode.parentNode;
+      for (var fi = 0; fi < fragments.length; fi++) {
+        parent.insertBefore(fragments[fi], tNode);
+      }
+      parent.removeChild(tNode);
+    }
+  }
+
+  if (_findMatches.length > 0) {
+    _findCurrent = 0;
+    goToFindMatch();
+  }
+  updateFindInfo();
+}
+
+function goToFindMatch() {
+  // Clear previous current
+  var prev = $content.querySelector('.find-match-current');
+  if (prev) prev.className = 'find-match';
+  if (_findCurrent >= 0 && _findCurrent < _findMatches.length) {
+    _findMatches[_findCurrent].className = 'find-match-current';
+    // Scroll within content-body (not window)
+    var el = _findMatches[_findCurrent];
+    var container = $content;
+    var elRect = el.getBoundingClientRect();
+    var contRect = container.getBoundingClientRect();
+    var scrollTarget = container.scrollTop + (elRect.top - contRect.top) - (contRect.height / 2);
+    container.scrollTo({ top: scrollTarget, behavior: 'smooth' });
+  }
+  updateFindInfo();
+}
+
+function updateFindInfo() {
+  if (_findMatches.length === 0) {
+    $findInfo.textContent = $findInput.value ? 'No matches' : '';
+  } else {
+    $findInfo.textContent = (_findCurrent + 1) + '/' + _findMatches.length;
+  }
+}
+
+function findNext() {
+  if (_findMatches.length === 0) return;
+  _findCurrent = (_findCurrent + 1) % _findMatches.length;
+  goToFindMatch();
+}
+
+function findPrev() {
+  if (_findMatches.length === 0) return;
+  _findCurrent = (_findCurrent - 1 + _findMatches.length) % _findMatches.length;
+  goToFindMatch();
+}
+
+function openFind() {
+  $findBar.classList.add('visible');
+  $findInput.focus();
+  $findInput.select();
+}
+
+function closeFind() {
+  $findBar.classList.remove('visible');
+  clearFindHighlights();
+}
+
+$findInput.addEventListener('input', function() {
+  doFind();
+});
+
+document.getElementById('btn-find').addEventListener('click', openFind);
+document.getElementById('find-next').addEventListener('click', findNext);
+document.getElementById('find-prev').addEventListener('click', findPrev);
+document.getElementById('find-close').addEventListener('click', closeFind);
+document.getElementById('find-whole').addEventListener('click', function() {
+  _findWholeWord = !_findWholeWord;
+  this.classList.toggle('active', _findWholeWord);
+  doFind();
+});
+
+$findInput.addEventListener('keydown', function(ev) {
+  if (ev.key === 'Enter') {
+    ev.preventDefault();
+    if (ev.shiftKey) findPrev(); else findNext();
+  }
+  if (ev.key === 'Escape') {
+    ev.preventDefault();
+    closeFind();
+  }
+  ev.stopPropagation();
+});
+
 function openHelp() { $helpOverlay.classList.add('visible'); }
 function closeHelp() { $helpOverlay.classList.remove('visible'); }
 $btnHelp.addEventListener('click', openHelp);
@@ -3234,6 +3549,15 @@ $search.addEventListener('input', function() {
     doSearch(state.searchQuery);
     updateSearchModeUI(true);
   }, 300);
+});
+
+document.getElementById('search-clear').addEventListener('click', function() {
+  $search.value = '';
+  state.searchQuery = '';
+  _searchResults = null;
+  updateSearchModeUI(false);
+  renderTree();
+  $search.focus();
 });
 
 // --- Filter Panel ---
@@ -3295,7 +3619,7 @@ $filterCreTo.addEventListener('change', applyFilters);
 if (window.ResizeObserver) {
   new ResizeObserver(function(entries) {
     var w = entries[0].contentRect.width;
-    $sidebar.classList.toggle('narrow', w < 300);
+    $sidebar.classList.toggle('narrow', w < 428);
   }).observe($sidebar);
 }
 
@@ -3341,14 +3665,10 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     if (state.activeTab) closeTab(state.activeTab);
   }
-  // Ctrl+F or Cmd+F to focus search
+  // Ctrl+F or Cmd+F to open in-document find
   if ((e.ctrlKey || e.metaKey) && e.key === 'f') {
-    // Only intercept if not already focused on search
-    if (document.activeElement !== $search) {
-      e.preventDefault();
-      $search.focus();
-      $search.select();
-    }
+    e.preventDefault();
+    openFind();
   }
   // Escape to clear search
   if (e.key === 'Escape') {
@@ -3436,6 +3756,8 @@ const server = http.createServer(function (req, res) {
         sendJSON(res, { ok: true, path: dp });
       } catch(e) { sendError(res, 'Delete failed: ' + e.message); }
     });
+  } else if (pathname === '/api/pick-folder') {
+    handlePickFolder(req, res);
   } else if (pathname === '/api/search') {
     handleSearch(req, res, parsed.query);
   } else if (pathname === '/api/media') {
