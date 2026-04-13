@@ -131,6 +131,17 @@ Drag any supported file from your OS file manager directly onto the browser wind
 - Toggle hidden files (`.git`, `node_modules`, etc.)
 - Extension badges with color coding
 - Folders first, alphabetical sort
+- **File timestamps** — modified time (seconds precision), created date shown when different
+- **Responsive sidebar** — narrows gracefully, hiding size and created date below 300px
+
+### Full-Text Search with Filters
+
+- Search across filenames **and** file contents with AND/OR operators
+- **Match count badges** — shows total matches per file (filename + content)
+- **Sort by matches** — Matches sort button appears in search mode
+- **Date filters** — filter by Modified and/or Created date ranges via calendar pickers
+- **Match count filter** — filter results by min/max match count
+- **Cross-filtering** — combine date and match filters simultaneously
 
 ### Markdown Rendering
 

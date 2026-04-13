@@ -119,6 +119,24 @@ function parseSearchQuery(q) {
   });
 }
 
+function countOccurrences(text, parsedQuery) {
+  var lower = text.toLowerCase();
+  var count = 0;
+  for (var i = 0; i < parsedQuery.length; i++) {
+    for (var j = 0; j < parsedQuery[i].length; j++) {
+      var term = parsedQuery[i][j];
+      var pos = 0;
+      while (true) {
+        var idx = lower.indexOf(term, pos);
+        if (idx === -1) break;
+        count++;
+        pos = idx + 1;
+      }
+    }
+  }
+  return count;
+}
+
 function matchesQuery(text, parsedQuery) {
   var lower = text.toLowerCase();
   for (var i = 0; i < parsedQuery.length; i++) {
@@ -183,13 +201,18 @@ function handleSearch(req, res, query) {
       }
       if (nameMatch || contentMatch) {
         var entryStat = fs.statSync(fullPath);
+        var nameMatchCount = countOccurrences(entry.name, parsedQ);
+        var contentMatchCount = contentMatch ? countOccurrences(content || '', parsedQ) : 0;
         results.push({
           name: entry.name, type: 'file', size: entryStat.size,
           modified: entryStat.mtime.toISOString(),
           created: entryStat.birthtime.toISOString(),
           hidden: isHiddenFile(entry.name),
           matchType: nameMatch && contentMatch ? 'both' : (nameMatch ? 'name' : 'content'),
-          snippet: snippet
+          snippet: snippet,
+          nameMatchCount: nameMatchCount,
+          contentMatchCount: contentMatchCount,
+          matchCount: nameMatchCount + contentMatchCount
         });
       }
     }
@@ -656,6 +679,61 @@ function getHTML() {
   .search-snippet mark { background: rgba(255,200,0,0.3); color: var(--text); font-weight: 600; border-radius: 2px; padding: 0 1px; }
   .search-mode-indicator { font-size: 10px; color: var(--accent); padding: 2px 8px; opacity: 0.7; }
   .tree-item.parent-dir { border-bottom: 1px solid var(--border); margin-bottom: 2px; padding-bottom: 5px; }
+
+  .tree-item .file-date {
+    font-size: 10px; color: var(--text-dim); flex-shrink: 0;
+    opacity: 0.6; text-align: right; white-space: nowrap;
+  }
+  .tree-item .file-date.modified { min-width: 120px; }
+  .tree-item .file-date.created { min-width: 64px; font-size: 9px; opacity: 0.4; }
+  .tree-item .match-count {
+    font-size: 9px; padding: 1px 5px; border-radius: 8px;
+    background: rgba(88,166,255,0.15); color: var(--accent);
+    font-weight: 600; flex-shrink: 0; min-width: 18px; text-align: center;
+  }
+
+  .date-filter-panel {
+    padding: 8px 10px; border-bottom: 1px solid var(--border);
+    display: none; flex-direction: column; gap: 6px;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .date-filter-panel.visible { display: flex; }
+  .date-filter-row {
+    display: flex; align-items: center; gap: 6px;
+  }
+  .date-filter-row label { min-width: 60px; font-size: 11px; flex-shrink: 0; }
+  .date-filter-row input[type="date"] {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 2px 4px; border-radius: 4px;
+    font-size: 11px; flex: 1; min-width: 0; outline: none;
+  }
+  .date-filter-row input[type="date"]:focus { border-color: var(--accent); }
+  .date-filter-row .date-sep { color: var(--text-dim); flex-shrink: 0; }
+  .match-filter-row {
+    display: flex; align-items: center; gap: 6px;
+    font-size: 11px; color: var(--text-dim);
+  }
+  .match-filter-row label { min-width: 60px; font-size: 11px; flex-shrink: 0; }
+  .match-filter-row input[type="number"] {
+    background: var(--bg); border: 1px solid var(--border);
+    color: var(--text); padding: 2px 4px; border-radius: 4px;
+    font-size: 11px; width: 52px; outline: none;
+  }
+  .match-filter-row input[type="number"]:focus { border-color: var(--accent); }
+  .date-filter-actions { display: flex; gap: 4px; justify-content: flex-end; margin-top: 2px; }
+  .date-filter-actions button {
+    background: none; border: 1px solid var(--border);
+    color: var(--text-dim); padding: 2px 10px; border-radius: 4px;
+    cursor: pointer; font-size: 10px; transition: all 0.15s;
+  }
+  .date-filter-actions button:hover { color: var(--text); border-color: var(--text-dim); }
+  .date-filter-actions button.btn-apply { color: var(--accent); border-color: var(--accent); }
+  .date-filter-actions button.btn-apply:hover { background: rgba(88,166,255,0.1); }
+  .filter-active-indicator { color: var(--accent); font-size: 8px; margin-left: 2px; }
+
+  .sidebar.narrow .tree-item .size { display: none; }
+  .sidebar.narrow .tree-item .file-date.created { display: none; }
+  .sidebar.narrow .tree-item .file-date.modified { min-width: auto; font-size: 9px; }
 
   /* Content area */
   .content-area { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
@@ -1243,6 +1321,38 @@ function getHTML() {
       <button class="sidebar-opt sort-btn" id="sort-size" data-sort="size" title="Sort by size">Size <span class="sort-arrow">&#9662;</span></button>
       <button class="sidebar-opt sort-btn" id="sort-modified" data-sort="modified" title="Sort by modified time">Modified <span class="sort-arrow">&#9662;</span></button>
       <button class="sidebar-opt sort-btn" id="sort-created" data-sort="created" title="Sort by created time">Created <span class="sort-arrow">&#9662;</span></button>
+      <button class="sidebar-opt sort-btn" id="sort-matches" data-sort="matchCount" title="Sort by match count" style="display:none">Matches <span class="sort-arrow">&#9662;</span></button>
+      <div class="sort-sep"></div>
+      <button class="sidebar-opt" id="btn-filter" title="Date &amp; match filters">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1.5 2h13l-4.5 5.5v4.5l-4 2V7.5z"/>
+        </svg>
+        Filter
+      </button>
+    </div>
+    <div class="date-filter-panel" id="date-filter-panel">
+      <div class="date-filter-row">
+        <label>Modified:</label>
+        <input type="date" id="filter-mod-from" title="From">
+        <span class="date-sep">~</span>
+        <input type="date" id="filter-mod-to" title="To">
+      </div>
+      <div class="date-filter-row">
+        <label>Created:</label>
+        <input type="date" id="filter-cre-from" title="From">
+        <span class="date-sep">~</span>
+        <input type="date" id="filter-cre-to" title="To">
+      </div>
+      <div class="match-filter-row" id="match-filter-row" style="display:none">
+        <label>Matches:</label>
+        <input type="number" id="filter-match-min" min="0" placeholder="min">
+        <span class="date-sep">~</span>
+        <input type="number" id="filter-match-max" min="0" placeholder="max">
+      </div>
+      <div class="date-filter-actions">
+        <button id="date-filter-clear" title="Clear all filters">Clear</button>
+        <button id="date-filter-apply" class="btn-apply" title="Apply filters">Apply</button>
+      </div>
     </div>
     <div class="file-tree" id="file-tree"></div>
   </div>
@@ -1291,7 +1401,13 @@ var state = {
   sortBy: 'name',
   sortAsc: true,
   selectedTabs: {},
-  rootDir: ${JSON.stringify(ROOT_DIR)}
+  rootDir: ${JSON.stringify(ROOT_DIR)},
+  filterModFrom: '',
+  filterModTo: '',
+  filterCreFrom: '',
+  filterCreTo: '',
+  filterMatchMin: '',
+  filterMatchMax: ''
 };
 
 // --- DOM refs ---
@@ -1413,6 +1529,59 @@ function formatSize(bytes) {
   if (bytes < 1024) return bytes + ' B';
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
   return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+}
+
+function formatDate(isoStr) {
+  if (!isoStr) return '';
+  var d = new Date(isoStr);
+  var Y = d.getFullYear();
+  var M = String(d.getMonth() + 1).padStart(2, '0');
+  var D = String(d.getDate()).padStart(2, '0');
+  return Y + '-' + M + '-' + D;
+}
+
+function formatDateTime(isoStr) {
+  if (!isoStr) return '';
+  var d = new Date(isoStr);
+  var Y = d.getFullYear();
+  var M = String(d.getMonth() + 1).padStart(2, '0');
+  var D = String(d.getDate()).padStart(2, '0');
+  var h = String(d.getHours()).padStart(2, '0');
+  var m = String(d.getMinutes()).padStart(2, '0');
+  var s = String(d.getSeconds()).padStart(2, '0');
+  return Y + '-' + M + '-' + D + ' ' + h + ':' + m + ':' + s;
+}
+
+function passesDateFilter(item) {
+  if (state.filterModFrom) {
+    var modDate = formatDate(item.modified);
+    if (modDate < state.filterModFrom) return false;
+  }
+  if (state.filterModTo) {
+    var modDate2 = formatDate(item.modified);
+    if (modDate2 > state.filterModTo) return false;
+  }
+  if (state.filterCreFrom) {
+    var creDate = formatDate(item.created);
+    if (creDate < state.filterCreFrom) return false;
+  }
+  if (state.filterCreTo) {
+    var creDate2 = formatDate(item.created);
+    if (creDate2 > state.filterCreTo) return false;
+  }
+  return true;
+}
+
+function passesMatchFilter(item) {
+  if (state.filterMatchMin !== '') {
+    var min = parseInt(state.filterMatchMin, 10);
+    if (!isNaN(min) && (item.matchCount || 0) < min) return false;
+  }
+  if (state.filterMatchMax !== '') {
+    var max = parseInt(state.filterMatchMax, 10);
+    if (!isNaN(max) && (item.matchCount || 0) > max) return false;
+  }
+  return true;
 }
 
 // --- API ---
@@ -1590,6 +1759,10 @@ function sortItems(items) {
       vb = b.created || '';
       var cmp3 = va.localeCompare(vb);
       return asc ? cmp3 : -cmp3;
+    } else if (key === 'matchCount') {
+      va = a.matchCount || 0;
+      vb = b.matchCount || 0;
+      return asc ? va - vb : vb - va;
     }
     return 0;
   });
@@ -1670,17 +1843,26 @@ function renderTree() {
       + '</div>';
   }
 
+  // Check if any date filter is active
+  var hasDateFilter = state.filterModFrom || state.filterModTo || state.filterCreFrom || state.filterCreTo;
+  var hasMatchFilter = state.filterMatchMin !== '' || state.filterMatchMax !== '';
+
   // Search results mode
   if (_searchResults !== null) {
-    if (_searchResults.length === 0) {
+    var filteredResults = _searchResults.filter(function(sr) {
+      if (!state.showHidden && sr.hidden) return false;
+      if (hasDateFilter && !passesDateFilter(sr)) return false;
+      if (hasMatchFilter && !passesMatchFilter(sr)) return false;
+      return true;
+    });
+    if (filteredResults.length === 0) {
       html += '<div class="search-mode-indicator">No results</div>';
     } else {
-      html += '<div class="search-mode-indicator">' + _searchResults.length + ' result' + (_searchResults.length > 1 ? 's' : '') + '</div>';
+      html += '<div class="search-mode-indicator">' + filteredResults.length + ' result' + (filteredResults.length > 1 ? 's' : '') + '</div>';
     }
-    var sitems = sortItems(_searchResults);
+    var sitems = sortItems(filteredResults);
     for (var si = 0; si < sitems.length; si++) {
       var sitem = sitems[si];
-      if (!state.showHidden && sitem.hidden) continue;
       var sext = getExt(sitem.name);
       var sicon = getIcon(sitem.name, false);
       var sfullPath = state.currentPath + '/' + sitem.name;
@@ -1695,10 +1877,19 @@ function renderTree() {
         + '<span class="name">' + (sitem.matchType !== 'content' && _searchParsedQ ? highlightTerms(sitem.name, _searchParsedQ) : escHtml(sitem.name)) + '</span>';
 
       if (sext) {
-        html += '<span class="file-meta">'
-          + '<span class="badge" style="color:' + sbadgeColor + ';border:1px solid ' + sbadgeColor + '">' + sext + '</span>'
-          + (sitem.size !== undefined ? '<span class="size">' + formatSize(sitem.size) + '</span>' : '')
-          + '</span>';
+        html += '<span class="file-meta">';
+        if (sitem.matchCount !== undefined) {
+          html += '<span class="match-count" title="' + sitem.matchCount + ' matches (' + (sitem.nameMatchCount || 0) + ' name + ' + (sitem.contentMatchCount || 0) + ' content)">' + sitem.matchCount + '</span>';
+        }
+        html += '<span class="badge" style="color:' + sbadgeColor + ';border:1px solid ' + sbadgeColor + '">' + sext + '</span>'
+          + (sitem.size !== undefined ? '<span class="size">' + formatSize(sitem.size) + '</span>' : '');
+        if (sitem.modified) {
+          html += '<span class="file-date modified" title="Modified: ' + formatDateTime(sitem.modified) + '">' + formatDateTime(sitem.modified) + '</span>';
+        }
+        if (sitem.created && formatDate(sitem.created) !== formatDate(sitem.modified)) {
+          html += '<span class="file-date created" title="Created: ' + formatDate(sitem.created) + '">' + formatDate(sitem.created) + '</span>';
+        }
+        html += '</span>';
       }
       html += '<span class="file-actions">'
         + '<button class="btn-ren" data-action="rename" title="Rename">&#9998;</button>'
@@ -1722,6 +1913,8 @@ function renderTree() {
     if (!state.showHidden && item.hidden) continue;
     // Search filter (fallback for non-search mode)
     if (q && !_searchResults && item.name.toLowerCase().indexOf(q) === -1) continue;
+    // Date filter
+    if (hasDateFilter && !passesDateFilter(item)) continue;
 
     var isDir = item.type === 'dir';
     var ext = isDir ? '' : getExt(item.name);
@@ -1741,8 +1934,14 @@ function renderTree() {
     if (ext && !isDir) {
       html += '<span class="file-meta">'
         + '<span class="badge" style="color:' + badgeColor + ';border:1px solid ' + badgeColor + '">' + ext + '</span>'
-        + (item.size !== undefined ? '<span class="size">' + formatSize(item.size) + '</span>' : '')
-        + '</span>';
+        + (item.size !== undefined ? '<span class="size">' + formatSize(item.size) + '</span>' : '');
+      if (item.modified) {
+        html += '<span class="file-date modified" title="Modified: ' + formatDateTime(item.modified) + '">' + formatDateTime(item.modified) + '</span>';
+      }
+      if (item.created && formatDate(item.created) !== formatDate(item.modified)) {
+        html += '<span class="file-date created" title="Created: ' + formatDate(item.created) + '">' + formatDate(item.created) + '</span>';
+      }
+      html += '</span>';
     }
     html += '<span class="file-actions">'
       + '<button class="btn-ren" data-action="rename" title="Rename (F2)">&#9998;</button>'
@@ -2876,7 +3075,7 @@ document.getElementById('btn-pdf').addEventListener('click', function() {
 });
 
 // --- Sort buttons ---
-var sortDefaults = { name: true, size: false, modified: false, created: false };
+var sortDefaults = { name: true, size: false, modified: false, created: false, matchCount: false };
 var sortBtns = document.querySelectorAll('.sort-btn');
 
 function updateSortUI() {
@@ -3009,18 +3208,96 @@ $btnWrap.addEventListener('click', function() {
 });
 
 // --- Search ---
+var $sortMatches = document.getElementById('sort-matches');
+var $matchFilterRow = document.getElementById('match-filter-row');
+
+function updateSearchModeUI(isSearchMode) {
+  $sortMatches.style.display = isSearchMode ? '' : 'none';
+  $matchFilterRow.style.display = isSearchMode ? 'flex' : 'none';
+  if (!isSearchMode && state.sortBy === 'matchCount') {
+    state.sortBy = 'name';
+    state.sortAsc = true;
+    updateSortUI();
+  }
+}
+
 $search.addEventListener('input', function() {
   state.searchQuery = $search.value;
   if (_searchTimer) clearTimeout(_searchTimer);
   if (!state.searchQuery) {
     _searchResults = null;
+    updateSearchModeUI(false);
     renderTree();
     return;
   }
   _searchTimer = setTimeout(function() {
     doSearch(state.searchQuery);
+    updateSearchModeUI(true);
   }, 300);
 });
+
+// --- Filter Panel ---
+var $btnFilter = document.getElementById('btn-filter');
+var $dateFilterPanel = document.getElementById('date-filter-panel');
+var $filterModFrom = document.getElementById('filter-mod-from');
+var $filterModTo = document.getElementById('filter-mod-to');
+var $filterCreFrom = document.getElementById('filter-cre-from');
+var $filterCreTo = document.getElementById('filter-cre-to');
+var $filterMatchMin = document.getElementById('filter-match-min');
+var $filterMatchMax = document.getElementById('filter-match-max');
+var $dateFilterApply = document.getElementById('date-filter-apply');
+var $dateFilterClear = document.getElementById('date-filter-clear');
+
+$btnFilter.addEventListener('click', function() {
+  $dateFilterPanel.classList.toggle('visible');
+});
+
+function applyFilters() {
+  state.filterModFrom = $filterModFrom.value;
+  state.filterModTo = $filterModTo.value;
+  state.filterCreFrom = $filterCreFrom.value;
+  state.filterCreTo = $filterCreTo.value;
+  state.filterMatchMin = $filterMatchMin.value;
+  state.filterMatchMax = $filterMatchMax.value;
+  // Update filter indicator on button
+  var hasFilter = state.filterModFrom || state.filterModTo || state.filterCreFrom || state.filterCreTo || state.filterMatchMin !== '' || state.filterMatchMax !== '';
+  $btnFilter.classList.toggle('active', hasFilter);
+  renderTree();
+}
+
+function clearFilters() {
+  $filterModFrom.value = '';
+  $filterModTo.value = '';
+  $filterCreFrom.value = '';
+  $filterCreTo.value = '';
+  $filterMatchMin.value = '';
+  $filterMatchMax.value = '';
+  state.filterModFrom = '';
+  state.filterModTo = '';
+  state.filterCreFrom = '';
+  state.filterCreTo = '';
+  state.filterMatchMin = '';
+  state.filterMatchMax = '';
+  $btnFilter.classList.remove('active');
+  renderTree();
+}
+
+$dateFilterApply.addEventListener('click', applyFilters);
+$dateFilterClear.addEventListener('click', clearFilters);
+
+// Auto-apply on date input change
+$filterModFrom.addEventListener('change', applyFilters);
+$filterModTo.addEventListener('change', applyFilters);
+$filterCreFrom.addEventListener('change', applyFilters);
+$filterCreTo.addEventListener('change', applyFilters);
+
+// --- ResizeObserver for narrow mode ---
+if (window.ResizeObserver) {
+  new ResizeObserver(function(entries) {
+    var w = entries[0].contentRect.width;
+    $sidebar.classList.toggle('narrow', w < 300);
+  }).observe($sidebar);
+}
 
 // --- Mermaid ---
 var mermaidLoaded = false;

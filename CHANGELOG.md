@@ -6,6 +6,16 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.7] - 2026-04-13
+
+### Added
+- **검색 매치 카운트** — 검색 결과에 파일명+본문 매치 총 개수 배지 표시, Matches 기준 정렬, min~max 범위 필터
+- **날짜 필터** — Modified/Created 각각 from~to 범위 설정 캘린더 피커, 교차 필터 지원, Filter 토글 버튼
+- **파일 타임스탬프 표시** — Modified 초 단위 표시, Created는 Modified와 다른 경우만 일자 표시
+- **사이드바 반응형** — 300px 이하로 좁히면 size·created 숨기고 badge+modified만 표시 (ResizeObserver)
+
+---
+
 ## [0.6] - 2026-04-13
 
 ### Added
