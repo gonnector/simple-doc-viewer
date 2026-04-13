@@ -111,6 +111,92 @@ function isHiddenFile(name) {
   return name.startsWith('.') || HIDDEN_NAMES.has(name);
 }
 
+// === Search utilities ===
+function parseSearchQuery(q) {
+  var orGroups = q.split(/[,|]/).map(function(g) { return g.trim(); }).filter(Boolean);
+  return orGroups.map(function(group) {
+    return group.split(/[\s&]+/).map(function(t) { return t.trim().toLowerCase(); }).filter(Boolean);
+  });
+}
+
+function matchesQuery(text, parsedQuery) {
+  var lower = text.toLowerCase();
+  for (var i = 0; i < parsedQuery.length; i++) {
+    var andGroup = parsedQuery[i];
+    var allMatch = true;
+    for (var j = 0; j < andGroup.length; j++) {
+      if (lower.indexOf(andGroup[j]) === -1) { allMatch = false; break; }
+    }
+    if (allMatch) return true;
+  }
+  return false;
+}
+
+function extractSnippet(content, parsedQuery, maxLen) {
+  maxLen = maxLen || 80;
+  var lower = content.toLowerCase();
+  var bestPos = -1;
+  for (var i = 0; i < parsedQuery.length; i++) {
+    for (var j = 0; j < parsedQuery[i].length; j++) {
+      var pos = lower.indexOf(parsedQuery[i][j]);
+      if (pos !== -1 && (bestPos === -1 || pos < bestPos)) bestPos = pos;
+    }
+  }
+  if (bestPos === -1) return '';
+  var lineStart = content.lastIndexOf('\n', bestPos) + 1;
+  var lineEnd = content.indexOf('\n', bestPos);
+  if (lineEnd === -1) lineEnd = content.length;
+  var line = content.substring(lineStart, lineEnd).trim();
+  if (line.length > maxLen) {
+    var start = Math.max(0, bestPos - lineStart - 30);
+    line = (start > 0 ? '...' : '') + line.substring(start, start + maxLen) + '...';
+  }
+  return line;
+}
+
+function handleSearch(req, res, query) {
+  var dirPath = (query.path || ROOT_DIR).replace(/\\/g, '/');
+  var q = (query.q || '').trim();
+  if (!q) return sendJSON(res, { results: [] });
+  var resolved = path.resolve(dirPath).replace(/\\/g, '/');
+  var parsedQ = parseSearchQuery(q);
+  var results = [];
+  try {
+    var entries = fs.readdirSync(resolved, { withFileTypes: true });
+    for (var i = 0; i < entries.length; i++) {
+      var entry = entries[i];
+      if (entry.isDirectory()) continue;
+      var fullPath = path.join(resolved, entry.name).replace(/\\/g, '/');
+      var nameMatch = matchesQuery(entry.name, parsedQ);
+      var contentMatch = false;
+      var snippet = '';
+      var ext = path.extname(entry.name).slice(1).toLowerCase();
+      if (TEXT_EXTENSIONS.has(ext) || KNOWN_TEXT_FILES.has(entry.name.toLowerCase())) {
+        try {
+          var stat = fs.statSync(fullPath);
+          if (stat.size <= MAX_FILE_SIZE) {
+            var content = fs.readFileSync(fullPath, 'utf-8');
+            contentMatch = matchesQuery(content, parsedQ);
+            if (contentMatch) snippet = extractSnippet(content, parsedQ);
+          }
+        } catch(e) { /* skip */ }
+      }
+      if (nameMatch || contentMatch) {
+        var entryStat = fs.statSync(fullPath);
+        results.push({
+          name: entry.name, type: 'file', size: entryStat.size,
+          modified: entryStat.mtime.toISOString(),
+          created: entryStat.birthtime.toISOString(),
+          hidden: isHiddenFile(entry.name),
+          matchType: nameMatch && contentMatch ? 'both' : (nameMatch ? 'name' : 'content'),
+          snippet: snippet
+        });
+      }
+    }
+    sendJSON(res, { path: resolved, results: results });
+  } catch(e) { sendError(res, 'Search failed: ' + e.message); }
+}
+
 function sendJSON(res, data, status) {
   status = status || 200;
   res.writeHead(status, {
@@ -559,6 +645,16 @@ function getHTML() {
     padding: 1px 6px; border-radius: 4px; font-size: 13px; outline: none;
     flex: 1; min-width: 0;
   }
+  .tree-item.match-name .name { background: rgba(88,166,255,0.2); border-radius: 2px; padding: 0 2px; }
+  .tree-item.match-content { border-left: 3px solid var(--accent3); padding-left: 9px; }
+  .tree-item.match-both { border-left: 3px solid var(--accent); padding-left: 9px; }
+  .tree-item.match-both .name { background: rgba(88,166,255,0.2); border-radius: 2px; padding: 0 2px; }
+  .search-snippet {
+    font-size: 11px; color: var(--text-dim); padding: 0 12px 4px 34px;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis; cursor: pointer;
+  }
+  .search-snippet mark { background: rgba(255,200,0,0.3); color: var(--text); font-weight: 600; border-radius: 2px; padding: 0 1px; }
+  .search-mode-indicator { font-size: 10px; color: var(--accent); padding: 2px 8px; opacity: 0.7; }
   .tree-item.parent-dir { border-bottom: 1px solid var(--border); margin-bottom: 2px; padding-bottom: 5px; }
 
   /* Content area */
@@ -847,6 +943,9 @@ function getHTML() {
   body.light-mode .md-rendered thead { background: rgba(9,105,218,0.08); }
   body.light-mode .md-rendered tbody tr:hover { background: rgba(9,105,218,0.03); }
   body.light-mode .md-rendered mark { background: #fff8c5; color: #1f2328; }
+  body.light-mode .tree-item.match-name .name { background: rgba(9,105,218,0.15); }
+  body.light-mode .tree-item.match-both .name { background: rgba(9,105,218,0.15); }
+  body.light-mode .search-snippet mark { background: rgba(255,200,0,0.4); }
   body.light-mode .md-rendered .frontmatter-card .fm-tag { background: rgba(9,105,218,0.1); color: #0969da; }
   body.light-mode .header-btn.active { background: rgba(9,105,218,0.1); }
   body.light-mode .sidebar-opt.active { color: #0969da; border-color: #0969da; background: rgba(9,105,218,0.08); }
@@ -1061,6 +1160,21 @@ function getHTML() {
       </div>
     </div>
     <div class="help-section">
+      <div class="help-section-title">Search</div>
+      <div class="help-row">
+        <span class="help-desc">AND: space or &amp;</span>
+        <span class="help-desc" style="opacity:0.6">api server = both must match</span>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">OR: comma or |</span>
+        <span class="help-desc" style="opacity:0.6">api,server = either matches</span>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Searches file names + content</span>
+        <span class="help-desc" style="opacity:0.6">case insensitive</span>
+      </div>
+    </div>
+    <div class="help-section">
       <div class="help-section-title">File Management</div>
       <div class="help-row">
         <span class="help-desc">Rename selected file</span>
@@ -1114,7 +1228,7 @@ function getHTML() {
 <div class="main">
   <div class="sidebar">
     <div class="sidebar-header">
-      <input type="text" id="search-input" placeholder="Filter files...">
+      <input type="text" id="search-input" placeholder="Search files &amp; content...">
     </div>
     <div class="sidebar-opts">
       <button class="sidebar-opt" id="btn-hidden" title="Show hidden files">
@@ -1482,17 +1596,123 @@ function sortItems(items) {
   return sorted;
 }
 
+// --- Search ---
+function parseQueryClient(q) {
+  var orGroups = q.split(/[,|]/).map(function(g) { return g.trim(); }).filter(Boolean);
+  return orGroups.map(function(group) {
+    return group.split(/[\s&]+/).map(function(t) { return t.trim().toLowerCase(); }).filter(Boolean);
+  });
+}
+
+function highlightTerms(text, parsedQ) {
+  // Collect unique terms
+  var terms = [];
+  for (var i = 0; i < parsedQ.length; i++) {
+    for (var j = 0; j < parsedQ[i].length; j++) {
+      if (terms.indexOf(parsedQ[i][j]) === -1) terms.push(parsedQ[i][j]);
+    }
+  }
+  terms.sort(function(a, b) { return b.length - a.length; });
+
+  // Find all match positions in original text
+  var lower = text.toLowerCase();
+  var marks = new Array(text.length);
+  for (var k = 0; k < terms.length; k++) {
+    var term = terms[k];
+    var pos = 0;
+    while (true) {
+      var idx = lower.indexOf(term, pos);
+      if (idx === -1) break;
+      for (var m = idx; m < idx + term.length; m++) marks[m] = true;
+      pos = idx + 1;
+    }
+  }
+
+  // Build highlighted HTML
+  var out = '';
+  var inMark = false;
+  for (var c = 0; c < text.length; c++) {
+    if (marks[c] && !inMark) { out += '<mark>'; inMark = true; }
+    if (!marks[c] && inMark) { out += '</mark>'; inMark = false; }
+    out += escHtml(text.charAt(c));
+  }
+  if (inMark) out += '</mark>';
+  return out;
+}
+
+var _searchTimer = null;
+var _searchResults = null;
+var _searchParsedQ = null;
+
+function doSearch(query) {
+  if (!query) { _searchResults = null; renderTree(); return; }
+  var xhr = new XMLHttpRequest();
+  xhr.open('GET', '/api/search?path=' + encodeURIComponent(state.currentPath) + '&q=' + encodeURIComponent(query));
+  xhr.onload = function() {
+    var resp = JSON.parse(xhr.responseText);
+    _searchResults = resp.results || [];
+    _searchParsedQ = parseQueryClient(query);
+    renderTree();
+  };
+  xhr.send();
+}
+
 function renderTree() {
   var items = sortItems(state.items);
   var q = state.searchQuery.toLowerCase();
   var html = '';
 
   // Parent directory link
-  if (state.parentPath) {
+  if (state.parentPath && !_searchResults) {
     html += '<div class="tree-item parent-dir" data-action="navigate" data-path="' + escHtml(state.parentPath) + '">'
       + '<span class="icon">\\ud83d\\udcc1</span>'
       + '<span class="name">..</span>'
       + '</div>';
+  }
+
+  // Search results mode
+  if (_searchResults !== null) {
+    if (_searchResults.length === 0) {
+      html += '<div class="search-mode-indicator">No results</div>';
+    } else {
+      html += '<div class="search-mode-indicator">' + _searchResults.length + ' result' + (_searchResults.length > 1 ? 's' : '') + '</div>';
+    }
+    var sitems = sortItems(_searchResults);
+    for (var si = 0; si < sitems.length; si++) {
+      var sitem = sitems[si];
+      if (!state.showHidden && sitem.hidden) continue;
+      var sext = getExt(sitem.name);
+      var sicon = getIcon(sitem.name, false);
+      var sfullPath = state.currentPath + '/' + sitem.name;
+      var sisActive = state.activeTab === sfullPath;
+      var sbadgeColor = getBadgeColor(sext);
+      var matchCls = sitem.matchType === 'both' ? ' match-both' : (sitem.matchType === 'content' ? ' match-content' : ' match-name');
+
+      html += '<div class="tree-item' + (sisActive ? ' selected' : '') + matchCls + '"'
+        + ' data-action="open" data-path="' + escHtml(sfullPath) + '" data-name="' + escHtml(sitem.name) + '"'
+        + ' title="' + escHtml(sitem.name) + '">'
+        + '<span class="icon">' + sicon + '</span>'
+        + '<span class="name">' + (sitem.matchType !== 'content' && _searchParsedQ ? highlightTerms(sitem.name, _searchParsedQ) : escHtml(sitem.name)) + '</span>';
+
+      if (sext) {
+        html += '<span class="file-meta">'
+          + '<span class="badge" style="color:' + sbadgeColor + ';border:1px solid ' + sbadgeColor + '">' + sext + '</span>'
+          + (sitem.size !== undefined ? '<span class="size">' + formatSize(sitem.size) + '</span>' : '')
+          + '</span>';
+      }
+      html += '<span class="file-actions">'
+        + '<button class="btn-ren" data-action="rename" title="Rename">&#9998;</button>'
+        + '<button class="btn-del" data-action="delete" title="Delete">&#128465;</button>'
+        + '</span></div>';
+
+      if (sitem.snippet && (sitem.matchType === 'content' || sitem.matchType === 'both')) {
+        html += '<div class="search-snippet" data-action="open" data-path="' + escHtml(sfullPath) + '" data-name="' + escHtml(sitem.name) + '">'
+          + (_searchParsedQ ? highlightTerms(sitem.snippet, _searchParsedQ) : escHtml(sitem.snippet))
+          + '</div>';
+      }
+    }
+    $tree.innerHTML = html;
+    return;
   }
 
   for (var i = 0; i < items.length; i++) {
@@ -1500,8 +1720,8 @@ function renderTree() {
 
     // Hidden file filter
     if (!state.showHidden && item.hidden) continue;
-    // Search filter
-    if (q && item.name.toLowerCase().indexOf(q) === -1) continue;
+    // Search filter (fallback for non-search mode)
+    if (q && !_searchResults && item.name.toLowerCase().indexOf(q) === -1) continue;
 
     var isDir = item.type === 'dir';
     var ext = isDir ? '' : getExt(item.name);
@@ -1549,6 +1769,12 @@ $tree.addEventListener('click', function(e) {
     } else if (actionBtn.dataset.action === 'delete') {
       doDelete(filePath, fileName);
     }
+    return;
+  }
+  // Search snippet click
+  var snippetEl = e.target.closest('.search-snippet');
+  if (snippetEl && snippetEl.dataset.path) {
+    openFile(snippetEl.dataset.path, snippetEl.dataset.name);
     return;
   }
   var el = e.target.closest('.tree-item');
@@ -2785,7 +3011,15 @@ $btnWrap.addEventListener('click', function() {
 // --- Search ---
 $search.addEventListener('input', function() {
   state.searchQuery = $search.value;
-  renderTree();
+  if (_searchTimer) clearTimeout(_searchTimer);
+  if (!state.searchQuery) {
+    _searchResults = null;
+    renderTree();
+    return;
+  }
+  _searchTimer = setTimeout(function() {
+    doSearch(state.searchQuery);
+  }, 300);
 });
 
 // --- Mermaid ---
@@ -2844,6 +3078,7 @@ document.addEventListener('keydown', function(e) {
     if ($helpOverlay.classList.contains('visible')) { closeHelp(); return; }
     $search.value = '';
     state.searchQuery = '';
+    _searchResults = null;
     $search.blur();
     renderTree();
   }
@@ -2924,6 +3159,8 @@ const server = http.createServer(function (req, res) {
         sendJSON(res, { ok: true, path: dp });
       } catch(e) { sendError(res, 'Delete failed: ' + e.message); }
     });
+  } else if (pathname === '/api/search') {
+    handleSearch(req, res, parsed.query);
   } else if (pathname === '/api/media') {
     if (!parsed.query.path) return sendError(res, 'Path required');
     const filePath = path.resolve(parsed.query.path).replace(/\\/g, '/');
