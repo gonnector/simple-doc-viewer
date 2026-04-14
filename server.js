@@ -708,6 +708,8 @@ function getHTML() {
   }
   .tree-item .file-actions button:hover { color: var(--text); background: var(--hover); }
   .tree-item .file-actions .btn-del:hover { color: #f85149; }
+  .tree-item .file-actions .btn-copy:hover { color: var(--accent); }
+  .tree-item .file-actions .btn-copy.copied { color: #3fb950; }
   .tree-item .rename-input {
     background: var(--bg); border: 1px solid var(--accent); color: var(--text);
     padding: 1px 6px; border-radius: 4px; font-size: 13px; outline: none;
@@ -850,14 +852,9 @@ function getHTML() {
   .tab:hover .tab-close { opacity: 0.6; }
   .tab .tab-close:hover { opacity: 1; background: var(--border); }
   .tab.multi-selected { background: rgba(88,166,255,0.12); }
-  .tab-close-all {
-    display: flex; align-items: center; justify-content: center;
-    padding: 4px 8px; margin-left: auto; flex-shrink: 0;
-    font-size: 10px; color: var(--text-dim); cursor: pointer;
-    border: 1px solid transparent; border-radius: 4px; background: none;
-    white-space: nowrap;
-  }
-  .tab-close-all:hover { color: #f85149; border-color: var(--border); }
+  #btn-close-all:hover { color: #f85149; border-color: #f85149; }
+  #btn-close-all.has-selection { color: var(--accent); border-color: var(--accent); }
+  #btn-close-all.has-selection:hover { color: #f85149; border-color: #f85149; }
 
   .content-body { flex: 1; overflow-y: auto; padding: 24px 32px; }
 
@@ -1374,6 +1371,7 @@ function getHTML() {
     </button>
   </div>
   <div class="header-right">
+    <button class="header-btn" id="btn-close-all" title="Close all tabs" style="display:none">Close all</button>
     <button class="theme-toggle" id="btn-theme" title="Toggle light/dark mode (T)">
       <span class="theme-icon theme-sun">
         <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>
@@ -2015,6 +2013,7 @@ function renderTree() {
         html += '</span>';
       }
       html += '<span class="file-actions">'
+        + '<button class="btn-copy" data-action="copy-path" title="Copy full path">&#128203;</button>'
         + '<button class="btn-ren" data-action="rename" title="Rename">&#9998;</button>'
         + '<button class="btn-del" data-action="delete" title="Delete">&#128465;</button>'
         + '</span></div>';
@@ -2070,6 +2069,7 @@ function renderTree() {
       html += '</span>';
     }
     html += '<span class="file-actions">'
+      + '<button class="btn-copy" data-action="copy-path" title="Copy full path">&#128203;</button>'
       + '<button class="btn-ren" data-action="rename" title="Rename (F2)">&#9998;</button>'
       + '<button class="btn-del" data-action="delete" title="Delete">&#128465;</button>'
       + '</span>';
@@ -2082,7 +2082,7 @@ function renderTree() {
 // Tree click handler (event delegation)
 $tree.addEventListener('click', function(e) {
   // Check for action buttons first
-  var actionBtn = e.target.closest('[data-action="rename"], [data-action="delete"]');
+  var actionBtn = e.target.closest('[data-action="rename"], [data-action="delete"], [data-action="copy-path"]');
   if (actionBtn) {
     e.stopPropagation();
     var treeItem = actionBtn.closest('.tree-item');
@@ -2093,6 +2093,8 @@ $tree.addEventListener('click', function(e) {
       startRename(treeItem, filePath, fileName);
     } else if (actionBtn.dataset.action === 'delete') {
       doDelete(filePath, fileName);
+    } else if (actionBtn.dataset.action === 'copy-path') {
+      doCopyPath(filePath, actionBtn);
     }
     return;
   }
@@ -2195,6 +2197,42 @@ function doDelete(filePath, fileName) {
   xhr.send(JSON.stringify({ path: filePath }));
 }
 
+function doCopyPath(filePath, btn) {
+  var flash = function(ok) {
+    if (!btn) return;
+    var origTitle = btn.getAttribute('title') || 'Copy full path';
+    btn.classList.add('copied');
+    btn.setAttribute('title', ok ? 'Copied!' : 'Copy failed');
+    setTimeout(function() {
+      btn.classList.remove('copied');
+      btn.setAttribute('title', 'Copy full path');
+    }, 1200);
+  };
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(filePath).then(
+      function() { flash(true); },
+      function() { fallbackCopy(filePath, flash); }
+    );
+  } else {
+    fallbackCopy(filePath, flash);
+  }
+}
+
+function fallbackCopy(text, cb) {
+  var ta = document.createElement('textarea');
+  ta.value = text;
+  ta.style.position = 'fixed';
+  ta.style.top = '-1000px';
+  ta.style.opacity = '0';
+  document.body.appendChild(ta);
+  ta.focus(); ta.select();
+  var ok = false;
+  try { ok = document.execCommand('copy'); } catch(e) { ok = false; }
+  document.body.removeChild(ta);
+  if (cb) cb(ok);
+  if (!ok) alert('Copy failed. Path: ' + text);
+}
+
 // --- Tabs ---
 var MEDIA_IMG = { png:1, jpg:1, jpeg:1, gif:1, svg:1, webp:1, bmp:1, ico:1, tiff:1, tif:1, avif:1 };
 var MEDIA_VID = { mp4:1, webm:1, ogg:1, mov:1, avi:1, mkv:1 };
@@ -2274,10 +2312,10 @@ function closeTab(filePath, evt) {
 function renderTabs() {
   if (state.openTabs.length === 0) {
     $tabs.innerHTML = '';
+    updateCloseAllBtn();
     return;
   }
   var html = '';
-  var selCount = Object.keys(state.selectedTabs).length;
   for (var i = 0; i < state.openTabs.length; i++) {
     var p = state.openTabs[i];
     var tab = state.tabCache[p];
@@ -2289,29 +2327,45 @@ function renderTabs() {
       + '<span class="tab-close" data-close="' + escHtml(p) + '">&#10005;</span>'
       + '</div>';
   }
-  if (state.openTabs.length > 1) {
-    html += '<button class="tab-close-all" id="btn-close-all" title="Close all tabs">'
-      + (selCount > 0 ? 'Close ' + selCount + ' selected' : 'Close all')
-      + '</button>';
-  }
   $tabs.innerHTML = html;
+  updateCloseAllBtn();
 }
+
+function updateCloseAllBtn() {
+  var btn = document.getElementById('btn-close-all');
+  if (!btn) return;
+  if (state.openTabs.length <= 1) { btn.style.display = 'none'; btn.classList.remove('has-selection'); return; }
+  var selCount = Object.keys(state.selectedTabs).length;
+  btn.style.display = '';
+  if (selCount > 0) {
+    btn.textContent = 'Close ' + selCount + ' selected';
+    btn.title = 'Close selected tabs';
+    btn.classList.add('has-selection');
+  } else {
+    btn.textContent = 'Close all';
+    btn.title = 'Close all tabs';
+    btn.classList.remove('has-selection');
+  }
+}
+
+function doCloseAllOrSelected() {
+  if (state.openTabs.length === 0) return;
+  var selKeys = Object.keys(state.selectedTabs);
+  var toClose = selKeys.length > 0 ? selKeys : state.openTabs.slice();
+  for (var ci = 0; ci < toClose.length; ci++) {
+    var idx = state.openTabs.indexOf(toClose[ci]);
+    if (idx !== -1) { state.openTabs.splice(idx, 1); delete state.tabCache[toClose[ci]]; }
+  }
+  state.selectedTabs = {};
+  state.activeTab = state.openTabs.length > 0 ? state.openTabs[state.openTabs.length - 1] : null;
+  renderTabs(); renderContent(); renderTree();
+}
+
+// Close-all button (header-right)
+document.getElementById('btn-close-all').addEventListener('click', doCloseAllOrSelected);
 
 // Tab click handler (event delegation)
 $tabs.addEventListener('click', function(e) {
-  // Close All / Close Selected
-  if (e.target.id === 'btn-close-all') {
-    var selKeys = Object.keys(state.selectedTabs);
-    var toClose = selKeys.length > 0 ? selKeys : state.openTabs.slice();
-    for (var ci = 0; ci < toClose.length; ci++) {
-      var idx = state.openTabs.indexOf(toClose[ci]);
-      if (idx !== -1) { state.openTabs.splice(idx, 1); delete state.tabCache[toClose[ci]]; }
-    }
-    state.selectedTabs = {};
-    state.activeTab = state.openTabs.length > 0 ? state.openTabs[state.openTabs.length - 1] : null;
-    renderTabs(); renderContent(); renderTree();
-    return;
-  }
   var closeEl = e.target.closest('[data-close]');
   if (closeEl) {
     var cp = closeEl.dataset.close;

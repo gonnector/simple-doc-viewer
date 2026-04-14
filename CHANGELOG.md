@@ -6,6 +6,35 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.72] - 2026-04-14
+
+### Changed
+- **탭 닫기 버튼 위치** — "모든 탭 닫기 / 선택 탭 닫기" 버튼을 탭 바 오른쪽 끝에서 우상단 헤더(Day/Night 토글 왼쪽)로 이동. 탭이 많아 가로 스크롤이 생긴 상태에서도 즉시 접근 가능. 선택 탭이 있으면 accent 색상으로 강조, 탭이 1개 이하면 숨김.
+
+### Added
+- **파일 Copy Path** — 사이드바 파일 hover 액션에 📋 Copy Path 버튼 추가. 클릭 시 파일의 OS 풀 경로를 클립보드에 복사 (예: `E:/project/.../file.md`). 복사 성공 시 버튼이 녹색으로 깜박임. `navigator.clipboard` 실패 시 `execCommand` fallback. AI에게 파일 경로를 전달할 때 유용.
+
+---
+
+## [0.71] - 2026-04-13
+
+### Added
+- **문서 내 검색 (Ctrl+F)** — Find 바로 본문 내 텍스트 검색, 매치 하이라이트, N/M 카운터, Enter/Shift+Enter로 다음/이전 매치 이동, W 토글로 전체 단어 일치 모드. SVG·mermaid 영역 제외, content-body 내부 스크롤로 정렬.
+- **폴더 선택 다이얼로그** — 우상단 폴더 아이콘으로 OS 네이티브 폴더 피커 호출 (Windows: VBScript, macOS: osascript, Linux: zenity/kdialog).
+- **검색 클리어 버튼** — 사이드바 검색 입력에 × 버튼으로 1클릭 클리어.
+
+### Changed
+- **검색 하이라이트 재작성** — Range 기반 병합 방식으로 변경, 중첩 매치·경계 케이스 안정화.
+- **타임스탬프 표시 강화** — Modified/Created에 M·C 라벨 추가, M > C 차이를 초 단위로 비교하여 편집된 파일만 강조.
+- **컬럼 정렬 개선** — sidebar-opts와 content-tabs 높이 32px 통일, 정렬 화살표 정렬.
+- **반응형 narrow 모드** — 사이드바 임계값을 428px로 조정 (이전 300px), 실제 사용 폭에 맞춤.
+- **웰컴 화면 포맷 리스트** — 지원 확장자 87개 표시 + "+70 more" 카운터.
+
+### Fixed
+- **Find 바 우측 정렬** — 헤더 우상단 Find 버튼과 정렬 일치.
+
+---
+
 ## [0.7] - 2026-04-13
 
 ### Added
