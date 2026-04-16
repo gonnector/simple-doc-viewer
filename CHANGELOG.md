@@ -6,6 +6,13 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.73] - 2026-04-16
+
+### Changed
+- **Windows 폴더 피커 모던화** — 폴더 선택 다이얼로그를 VBScript `Shell.Application.BrowseForFolder`(레거시 트리 뷰)에서 Win32 `IFileDialog` + `FOS_PICKFOLDERS`로 교체. Windows 10/11 탐색기 스타일 모던 다이얼로그가 표시됨 (주소 바, 좌측 Quick Access, 검색창, 최근 항목 접근 가능). PowerShell `Add-Type`으로 C# P/Invoke 코드를 런타임 로드 — 외부 의존성 없음. macOS(osascript), Linux(zenity/kdialog)는 기존 유지.
+
+---
+
 ## [0.72] - 2026-04-14
 
 ### Changed
