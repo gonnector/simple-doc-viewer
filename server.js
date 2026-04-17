@@ -515,6 +515,12 @@ function getHTML() {
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>SDV - Simple Doc Viewer</title>
+<link rel="manifest" href="/public/manifest.json">
+<meta name="theme-color" content="#0969da">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SDV">
+<link rel="apple-touch-icon" href="/public/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/public/icon.svg">
 <link rel="stylesheet" href="/lib/katex/katex.min.css">
 <script src="/lib/katex/katex.min.js"></script>
 <style>
@@ -1451,6 +1457,9 @@ function getHTML() {
     <button class="header-btn" id="btn-wrap" title="Toggle word wrap">Wrap</button>
     <button class="header-btn" id="btn-pdf" title="Print (P)">Print</button>
     <button class="header-btn" id="btn-find" title="Find in document (Ctrl+F)">Find</button>
+    <button class="header-btn" id="btn-reload" title="Reload active document only (R)">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+    </button>
     <button class="btn-help" id="btn-help" title="Keyboard shortcuts (?)">?</button>
   </div>
 </div>
@@ -2351,7 +2360,32 @@ function activateTab(filePath) {
   state.activeTab = filePath;
   renderTabs();
   renderContent();
-  renderTree(); // update selection highlight
+
+  // 좌측 트리: 활성 파일의 parent 디렉토리로 자동 전환
+  // 가상 파일(__dropped__/ 등) 또는 이미 올바른 폴더면 스킵
+  if (filePath && filePath.indexOf('__dropped__/') !== 0) {
+    var parentDir = filePath.replace(/\\/[^/]+$/, '');
+    if (!parentDir) parentDir = '/';
+    if (parentDir !== state.currentPath) {
+      var inRoot = state.rootDir && (parentDir === state.rootDir || parentDir.indexOf(state.rootDir + '/') === 0);
+      if (inRoot) {
+        navigateTo(parentDir, function() { renderTree(); });
+        return;
+      } else {
+        // rootDir 밖 — chroot 후 이동
+        apiChroot(parentDir, function(data) {
+          if (data && !data.error && data.root) {
+            state.rootDir = data.root;
+            navigateTo(parentDir, function() { renderTree(); });
+          } else {
+            renderTree();
+          }
+        });
+        return;
+      }
+    }
+  }
+  renderTree(); // 같은 폴더면 하이라이트만
 }
 
 function closeTab(filePath, evt) {
@@ -2930,7 +2964,21 @@ var md = (function() {
         while (i < lines.length && (lines[i].match(/^>\\s?/) || (lines[i].trim() === '' && lines[i+1] && lines[i+1].match(/^>/)))) {
           qlines.push(lines[i].replace(/^>\\s?/, '')); i++;
         }
-        html += '<blockquote>' + parse(qlines.join('\\n')) + '</blockquote>';
+        // 인접한 non-empty 줄 사이는 <br />로 연결 (paragraph 경계는 빈 줄 유지)
+        var bqSrc = '';
+        for (var qi = 0; qi < qlines.length; qi++) {
+          bqSrc += qlines[qi];
+          if (qi < qlines.length - 1) {
+            var thisEmpty = qlines[qi].trim() === '';
+            var nextEmpty = qlines[qi + 1].trim() === '';
+            if (!thisEmpty && !nextEmpty) {
+              bqSrc += '<br />\\n';
+            } else {
+              bqSrc += '\\n';
+            }
+          }
+        }
+        html += '<blockquote>' + parse(bqSrc) + '</blockquote>';
         continue;
       }
 
@@ -3322,7 +3370,7 @@ document.getElementById('btn-pdf').addEventListener('click', function() {
     + '<meta charset="UTF-8">'
     + '<title>' + escHtml(title) + '</title>'
     + '<link rel="stylesheet" href="' + fontLink + '">'
-    + '<link rel="stylesheet" href="http://sdv.local:' + location.port + '/lib/katex/katex.min.css">'
+    + '<link rel="stylesheet" href="/lib/katex/katex.min.css">'
     + '<style>' + printCSS + '</style>'
     + '</head><body>'
     + contentHTML
@@ -3603,6 +3651,32 @@ $findInput.addEventListener('input', function() {
 });
 
 document.getElementById('btn-find').addEventListener('click', openFind);
+
+// Reload active document only (F5는 앱 전체 초기화이지만 이 버튼은 현재 탭만 재로드)
+function reloadActiveDoc() {
+  if (!state.activeTab) return;
+  var filePath = state.activeTab;
+  // 가상 파일(드래그-드롭 등)은 재로드 불가
+  if (filePath.indexOf('__dropped__/') === 0) return;
+
+  var tab = state.tabCache[filePath];
+  if (!tab) return;
+
+  var btn = document.getElementById('btn-reload');
+  if (btn) { btn.style.opacity = '0.5'; btn.disabled = true; }
+
+  tab.loading = true;
+  renderContent();
+
+  apiRead(filePath, function(data) {
+    tab.data = data;
+    tab.loading = false;
+    if (state.activeTab === filePath) renderContent();
+    if (btn) { btn.style.opacity = ''; btn.disabled = false; }
+  });
+}
+
+document.getElementById('btn-reload').addEventListener('click', reloadActiveDoc);
 document.getElementById('find-next').addEventListener('click', findNext);
 document.getElementById('find-prev').addEventListener('click', findPrev);
 document.getElementById('find-close').addEventListener('click', closeFind);
@@ -3806,6 +3880,7 @@ document.addEventListener('keydown', function(e) {
     if (e.key === 's') cycleViewMode();
     if (e.key === 'w') $btnWrap.click();
     if (e.key === 'p') document.getElementById('btn-pdf').click();
+    if (e.key === 'r') reloadActiveDoc();
     if (e.key === 'F2') {
       var sel = $tree.querySelector('.tree-item.selected');
       if (sel && !sel.classList.contains('parent-dir')) {
@@ -3831,6 +3906,14 @@ navigateTo('', INITIAL_FILE_PATH ? function() {
   openFile(INITIAL_FILE_PATH, INITIAL_FILE_PATH.split('/').pop());
 } : null);
 initMermaid();
+
+// PWA Service Worker 등록
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/sw.js', { scope: '/' })
+      .catch(function(err) { console.warn('[SDV] SW registration failed:', err); });
+  });
+}
 </script>
 </body>
 </html>`;
@@ -3908,6 +3991,32 @@ const server = http.createServer(function (req, res) {
         fs.createReadStream(filePath).pipe(res);
       }
     } catch (e) { sendError(res, 'Cannot read file: ' + e.message, 404); }
+  } else if (pathname === '/sw.js' || pathname === '/public/sw.js') {
+    // PWA Service Worker (root-scope 서빙 필수)
+    const swPath = path.join(__dirname, 'public', 'sw.js');
+    if (fs.existsSync(swPath)) {
+      res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache', 'Service-Worker-Allowed': '/' });
+      res.end(fs.readFileSync(swPath));
+    } else {
+      sendError(res, 'SW not found', 404);
+    }
+  } else if (pathname.startsWith('/public/')) {
+    // PWA 자원 (manifest, 아이콘 등)
+    const pubPath = path.join(__dirname, pathname.replace(/^\//, ''));
+    if (fs.existsSync(pubPath)) {
+      const ext = path.extname(pubPath);
+      const mimeMap = {
+        '.json': 'application/manifest+json',
+        '.png': 'image/png',
+        '.svg': 'image/svg+xml',
+        '.ico': 'image/x-icon',
+        '.js': 'application/javascript',
+      };
+      res.writeHead(200, { 'Content-Type': (mimeMap[ext] || 'application/octet-stream') + (ext === '.png' || ext === '.ico' ? '' : '; charset=utf-8'), 'Cache-Control': 'public, max-age=3600' });
+      res.end(fs.readFileSync(pubPath));
+    } else {
+      sendError(res, 'Not found', 404);
+    }
   } else if (pathname.startsWith('/lib/katex/')) {
     const katexFile = path.join(__dirname, pathname);
     if (fs.existsSync(katexFile)) {
@@ -3980,7 +4089,7 @@ function findAndKillPort(port, callback) {
 
 function startServer() {
   server.listen(PORT, '127.0.0.1', function () {
-    const serverUrl = 'http://sdv.local:' + PORT;
+    const serverUrl = 'http://localhost:' + PORT;
     console.log('');
     console.log('  SDV running at ' + serverUrl);
     console.log('  Root: ' + ROOT_DIR);

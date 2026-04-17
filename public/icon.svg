@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0969da"/>
+      <stop offset="1" stop-color="#1a7f37"/>
+    </linearGradient>
+    <linearGradient id="pg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="1" stop-color="#d0d7de"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="96" fill="url(#bg)"/>
+  <g transform="translate(128 88)">
+    <path d="M0 24 Q0 0 24 0 L180 0 L256 76 L256 312 Q256 336 232 336 L24 336 Q0 336 0 312 Z"
+          fill="url(#pg)" stroke="#8c959f" stroke-width="3"/>
+    <path d="M180 0 L180 60 Q180 76 196 76 L256 76" fill="none" stroke="#8c959f" stroke-width="3"/>
+    <g stroke="#0969da" stroke-width="10" stroke-linecap="round">
+      <line x1="40" y1="150" x2="216" y2="150"/>
+      <line x1="40" y1="190" x2="216" y2="190"/>
+      <line x1="40" y1="230" x2="170" y2="230"/>
+      <line x1="40" y1="270" x2="200" y2="270"/>
+    </g>
+  </g>
+  <text x="256" y="468" font-family="Arial, sans-serif" font-size="72" font-weight="700"
+        text-anchor="middle" fill="#ffffff" letter-spacing="2">SDV</text>
+</svg>

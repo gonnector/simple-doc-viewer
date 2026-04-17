@@ -6,6 +6,28 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.75] - 2026-04-17
+
+### Added
+- **PWA 설치 가능 (Windows/macOS/Linux)** — `public/manifest.json`, `public/sw.js`, 아이콘 세트(192/512/maskable/svg) 추가. 서버는 `/sw.js` root-scope 서빙 + `/public/*` 정적 서빙 + `Service-Worker-Allowed: /` 헤더. HTML에 `<link rel="manifest">` + theme-color + apple-touch-icon 추가. Chrome/Edge 주소창에서 "앱 설치" → 시작메뉴/Dock/Launchpad 자동 등록. 오프라인 동작 지원 (네트워크 우선 + 캐시 fallback). 설치 가이드: `docs/plans/20260417_guide_pwa-install_TARS.md`.
+- **문서 단독 reload 버튼** — 헤더 우측에 Reload 아이콘(🔄) 추가. 클릭 시 현재 활성 탭의 파일만 서버에서 재요청하여 내용 갱신. F5(앱 전체 초기화)와 달리 탭 상태·사이드바·스크롤 등 유지. 단축키: `r` (입력 필드 외부에서). 가상 파일(드래그-드롭 등)은 무시.
+- **SDV Launcher 스크립트** — `scripts/launcher/sdv-launcher.bat` + `install-shortcut.bat` + `uninstall-shortcut.bat`. 시작메뉴에서 "SDV (auto)" 클릭 시 서버 자동 시작 + PWA 창 열기 (포트 3000 체크 → 없으면 spawn → 브라우저 `--app` 모드로 열기).
+
+### Fixed
+- **WCO(Window Controls Overlay) 겹침 제거** — 설치된 앱에서 Chrome 창 제어 버튼이 앱 우상단 버튼(테마/Preview/Wrap/Print/Find)을 가리던 문제. manifest의 `display_override: ["window-controls-overlay", "standalone"]` 제거하고 순수 `display: standalone` 유지. 기존 설치된 앱은 제거 후 재설치 필요.
+
+## [0.74] - 2026-04-16
+
+### Added
+- **네이티브 앱 전환 계획 문서** — `docs/plans/20260416_plan_native-app-migration_TARS.md` 추가. PWA(1단계) → Tauri(2단계) 전환 로드맵 + AIOS 대시보드 연동 플로우. 상위 전략 문서는 `aios/components/desktop-apps/`.
+- **파일 탭 클릭 시 좌측 폴더 자동 전환** — 여러 탭을 열어두었을 때 특정 탭을 클릭하면 좌측 트리가 해당 파일의 parent 폴더로 자동 갱신됨. rootDir 밖 파일은 chroot 자동 확장 후 전환. 가상 파일(드롭)은 스킵. 같은 폴더면 하이라이트만 갱신.
+
+### Fixed
+- **Blockquote 줄바꿈 보존** — `> 작성...\n> Goal...\n> 의뢰...` 형태의 3줄 메타 블록이 한 줄로 합쳐지던 문제 수정. 연속된 non-empty 줄 사이에 `<br />` 삽입하여 화면·PDF 출력 모두 원본 줄바꿈 유지. 빈 줄 기반 paragraph 경계는 유지.
+
+### Changed
+- **sdv.local → localhost** — 내부 URL 참조를 `http://sdv.local:PORT`에서 `http://localhost:PORT`로 원복. hosts 파일 수정 불필요. (KaTeX CSS 링크는 상대경로 `/lib/katex/katex.min.css`로 변경)
+
 ## [0.73] - 2026-04-16
 
 ### Changed
