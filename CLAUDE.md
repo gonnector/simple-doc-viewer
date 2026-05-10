@@ -136,3 +136,16 @@ sdv              # 현재 폴더
 sdv /path/to/docs  # 특정 폴더
 sdv README.md    # 파일 직접 열기
 ```
+
+---
+
+## 변화 누적 방지 — 적정 단위 commit & push 제안 의무 (절대 규칙)
+
+에이전트는 코드·문서 어떤 종류든 변경을 발생시켰거나 `git status`에서 누적된 변경분을 발견하면, **적정 단위로 commit & push를 사용자에게 제시**한다. 누적시키지 않는다.
+
+- **단위 기준**: 컴포넌트별 / 기능 단위 / 단일 의도. 여러 영역의 변경을 한 commit에 섞지 않는다 ("한 세션 한 patch" SemVer 원칙과 정렬)
+- **제시 시점**: 작업 종료 직전 / 한 작업 단위 완료 직후 / `git status`에 무관 변경분 누적 발견 즉시
+- **방식**: `git add -A` 금지 → 명시 파일 selective add → `git diff --cached --stat` 검증 → commit. push는 보안 규칙에 따라 사용자 명시 지시 시에만
+- **제시 형식**: `git status` 영역별 분류 → 권장 commit 그룹 (3~5개) + 각 commit의 prefix·메시지 초안 → 사용자 승인 → 단위별 진행
+
+**부재 시 위험**: 한 달 이상 누적되면 history 추적·rollback 불가능. 디스크 손실·실수 rollback 시 working tree 데이터 유실. 다른 세션·다른 멤버 작업과 충돌. (사례: 2026-05-10 aios-dev 레포 13 modified + 14 untracked dirs 누적 발견 — 4월 초~5월 작업 다수가 commit 없이 working tree에만 존재)
