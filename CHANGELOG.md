@@ -15,6 +15,10 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 - **폴더 피커 명령 주입 차단** — 셸 문자열 조립(`exec`)을 `execFile` 인자 배열로 교체 (win32/darwin/linux 3-플랫폼). macOS AppleScript 리터럴은 별도 이스케이프.
 - **정적 핸들러 path traversal 차단** — `/public/*`, `/lib/katex/*`에 resolve 후 base 디렉토리 prefix 검증 추가.
 
+### Changed
+- **HTML 미리보기 sandbox를 `allow-scripts`로 완화** (Dylan 1차 테스트 피드백) — JS 렌더링 단일 HTML(esbuild 번들 보고서 등)이 정상 표시되도록 스크립트 실행 허용. opaque origin이라 SDV API 호출은 `Origin: null` → 서버 게이트가 403 차단 (T-018/019 검증). 보안 격리는 유지.
+- **폴더 피커 timeout 2분 → 10분** (Dylan 1차 테스트 피드백) — 다이얼로그를 2분 이상 열어두면 PowerShell 자식 프로세스가 timeout으로 강제 종료되며 피커가 저절로 닫히던 문제. 근본 개선(PowerShell 프로세스 방식 자체 제거)은 Tauri 전환 시 plugin-dialog 네이티브 피커로 해소 예정.
+
 ### Fixed
 - **비정상 Range 헤더로 인한 서버 크래시** — `/api/media`의 Range를 엄격 파싱(suffix range 지원, 비정상 값 416 응답)하고 read stream에 error 핸들러 + 클라이언트 중단 시 stream destroy 추가. 기존에는 `Range: bytes=abc-` 요청 하나로 서버 프로세스 전체가 종료됐음.
 

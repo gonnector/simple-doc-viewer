@@ -31,7 +31,9 @@
 | T-015 | suffix Range | 206 | 206 | PASS |
 | T-016 | 검색 정상 | 200 | 200 | PASS |
 | T-017 | 검색 root 밖 차단 | 403 | 403 | PASS |
-| T-M01~M04 | 브라우저 수동 4건 | — | — | **대기** (Dylan 실기) |
+| T-018 | opaque origin POST 차단 | 403 | 403 | PASS |
+| T-019 | opaque origin GET 차단 | 403 | 403 | PASS |
+| T-M01~M04 | 브라우저 수동 4건 | — | — | **진행 중** (Dylan 실기 — 1차: 루트밖 탐색·피커 동작 확인, HTML 스크립트는 allow-scripts 전환 후 재확인 필요) |
 
 ## 특이사항
 

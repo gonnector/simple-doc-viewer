@@ -60,11 +60,18 @@
 | T-012 | 정상 rename (root 내) | `POST /api/rename` + JSON | 200 `{ok:true}` |
 | T-013 | 정상 delete (root 내) | `POST /api/delete` + JSON | 200 `{ok:true}` |
 
+### 보안 — sandbox iframe API 격리 (1차 피드백 후 allow-scripts 전환)
+
+| ID | 시나리오 | 입력 | 기대 결과 |
+|----|----------|------|----------|
+| T-018 | opaque origin POST 차단 | `POST /api/delete` + `Origin: null` | 403 |
+| T-019 | opaque origin GET 차단 | `GET /api/read` + `Origin: null` | 403 |
+
 ### 수동 확인 (브라우저, 별도 세션)
 
 | ID | 시나리오 | 기대 결과 |
 |----|----------|----------|
-| T-M01 | HTML 파일 미리보기 | sandbox iframe(srcdoc)으로 렌더, 내부 스크립트 미실행 |
+| T-M01 | HTML 파일 미리보기 (JS 렌더링 포함) | sandbox(allow-scripts) iframe으로 렌더 — 스크립트 실행되어 번들 보고서 등 정상 표시, 단 SDV API 접근은 차단(opaque origin) |
 | T-M02 | 폴더 피커 버튼 | 네이티브 다이얼로그 정상 (POST 전환 후) |
 | T-M03 | path badge로 root 밖 경로 입력 | chroot POST 후 정상 이동 |
 | T-M04 | 파일 드래그 앤 드롭 (root 밖) | chroot 확장 후 정상 열림 |

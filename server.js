@@ -521,7 +521,8 @@ var WIN_PICK_FOLDER_PS1 = [
 
 function handlePickFolder(req, res) {
   // 명령 주입 방어: 셸 문자열 조립 금지 — execFile 인자 배열만 사용
-  var opts = { timeout: 120000, encoding: 'utf8' };
+  // timeout은 orphan PS 프로세스 방지용 안전망 — 10분 (2분이었을 때 다이얼로그가 저절로 닫히는 문제)
+  var opts = { timeout: 600000, encoding: 'utf8' };
 
   function onPicked(err, stdout) {
     var selected = (stdout || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
@@ -2649,18 +2650,19 @@ function renderContent(preserveScroll) {
         + renderRaw(data.content, data.ext)
         + '</div></div>'
         + '<div class="md-render-panel" style="padding:0">'
-        + '<iframe id="html-preview" sandbox="" style="width:100%;height:100%;border:none;background:#fff"></iframe>'
+        + '<iframe id="html-preview" sandbox="allow-scripts" style="width:100%;height:100%;border:none;background:#fff"></iframe>'
         + '</div></div>';
       setupSplitSync();
     } else if (state.viewMode === 'source') {
       $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';
     } else {
-      $content.innerHTML = '<iframe id="html-preview" sandbox="" style="width:100%;height:100%;border:none;background:#fff"></iframe>';
+      $content.innerHTML = '<iframe id="html-preview" sandbox="allow-scripts" style="width:100%;height:100%;border:none;background:#fff"></iframe>';
     }
     var hf = document.getElementById('html-preview');
     if (hf) {
-      // sandbox iframe은 same-origin이 아니므로 contentDocument 접근 불가 — srcdoc으로 주입
-      // (sandbox="" = 스크립트·same-origin 권한 모두 차단: 악성 HTML이 SDV API에 접근 불가)
+      // sandbox iframe은 same-origin이 아니므로 contentDocument 접근 불가 — srcdoc으로 주입.
+      // allow-scripts만 부여 (allow-same-origin 없음) = opaque origin에서 스크립트 실행:
+      // JS 렌더링 HTML(번들 보고서 등)은 정상 동작하되, SDV API 호출은 Origin: null이라 서버 게이트가 403
       hf.setAttribute('srcdoc', data.content);
     }
     if (!preserveScroll) $content.scrollTop = 0;
@@ -3280,7 +3282,7 @@ document.getElementById('btn-pick-folder').addEventListener('click', function() 
   var xhr = new XMLHttpRequest();
   xhr.open('POST', '/api/pick-folder');
   xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.timeout = 120000;
+  xhr.timeout = 600000;
   xhr.onload = function() {
     var resp = JSON.parse(xhr.responseText);
     if (resp.root) navigateTo(resp.root);
