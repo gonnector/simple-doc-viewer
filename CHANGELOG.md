@@ -6,6 +6,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.77] - 2026-06-12
+
+### Changed
+- **구조 리팩토링 — template literal 해체** (기획안 Phase 2). server.js 4,160줄 단일 파일을 3계층으로 분리:
+  - `server.js` — thin entry (CLI 파싱, 보안 게이트, 라우팅, 기동)
+  - `server/` — 모듈 15개 (state/config/util/respond/mermaid-download + routes/ 9개 + pick-folder.ps1)
+  - `client/` — 정적 프론트엔드 (index.html, style.css, app/ 20개 JS + manifest.json)
+  - 분리 방법: served-HTML 덤프 분할(`scripts/dev/extract-client.js`) — Node가 이중 이스케이프를 이미 해석한 산출물을 자르므로 수작업 역변환 0건. 재결합 무손실 검증 + 구버전 대비 라인 diff가 부트 패치 2곳뿐임을 확인
+  - `/client/app.js`는 app/*.js를 manifest 순서로 **결합한 단일 스크립트**로 서빙 — 분리 전과 hoisting 의미 동일 (번들러 불필요)
+  - 서버 값 주입 2곳(rootDir/INITIAL_FILE)은 신규 `GET /api/config` 런타임 fetch로 대체 — 클라이언트 100% 정적화
+  - **Template Literal 제약(이중 이스케이프, served-JS 검증 의무) 전면 폐기** — CLAUDE.md 갱신
+  - Windows 폴더 피커 PS1을 `server/pick-folder.ps1` 실제 파일로 추출 (temp 복사 단계 제거)
+- **PRD.md → docs/prd.md 이동** (레포 문서 구조 가이드라인 준수)
+
+### Added
+- 테스트 시나리오·검수 보고서 — Phase 2 (자동 전건 PASS: 무손실 게이트 4 + 부트스트랩 3 + 보안 회귀 17 + 정적 자원 5)
+
 ## [0.76] - 2026-06-12
 
 ### Security

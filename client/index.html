@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SDV - Simple Doc Viewer</title>
+<link rel="manifest" href="/public/manifest.json">
+<meta name="theme-color" content="#0969da">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="SDV">
+<link rel="apple-touch-icon" href="/public/icon-192.png">
+<link rel="icon" type="image/svg+xml" href="/public/icon.svg">
+<link rel="stylesheet" href="/lib/katex/katex.min.css">
+<script src="/lib/katex/katex.min.js"></script>
+<link rel="stylesheet" href="/client/style.css">
+</head>
+<body>
+
+<div class="help-overlay" id="help-overlay">
+  <div class="help-modal">
+    <div class="help-modal-header">
+      <h2>Keyboard Shortcuts</h2>
+      <button class="help-close" id="help-close">&#x2715;</button>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">Navigation</div>
+      <div class="help-row">
+        <span class="help-desc">Focus file search</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><span class="help-kbd-sep">+</span><kbd class="help-kbd">F</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Clear search / Dismiss</span>
+        <div class="help-keys"><kbd class="help-kbd">Esc</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Close active tab</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><span class="help-kbd-sep">+</span><kbd class="help-kbd">W</kbd></div>
+      </div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">View</div>
+      <div class="help-row">
+        <span class="help-desc">Toggle sidebar</span>
+        <div class="help-keys"><kbd class="help-kbd">B</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Toggle light / dark theme</span>
+        <div class="help-keys"><kbd class="help-kbd">T</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Cycle view: Preview / Split / Source</span>
+        <div class="help-keys"><kbd class="help-kbd">S</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Find in document</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><kbd class="help-kbd">F</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Next / Previous match</span>
+        <div class="help-keys"><kbd class="help-kbd">S</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Toggle word wrap</span>
+        <div class="help-keys"><kbd class="help-kbd">W</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Print</span>
+        <div class="help-keys"><kbd class="help-kbd">P</kbd></div>
+      </div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">Search</div>
+      <div class="help-row">
+        <span class="help-desc">AND: space or &amp;</span>
+        <span class="help-desc" style="opacity:0.6">api server = both must match</span>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">OR: comma or |</span>
+        <span class="help-desc" style="opacity:0.6">api,server = either matches</span>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Searches file names + content</span>
+        <span class="help-desc" style="opacity:0.6">case insensitive</span>
+      </div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">File Management</div>
+      <div class="help-row">
+        <span class="help-desc">Rename selected file</span>
+        <div class="help-keys"><kbd class="help-kbd">F2</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Delete selected file</span>
+        <div class="help-keys"><kbd class="help-kbd">Del</kbd></div>
+      </div>
+    </div>
+    <div class="help-section">
+      <div class="help-section-title">Help</div>
+      <div class="help-row">
+        <span class="help-desc">Show this help</span>
+        <div class="help-keys"><kbd class="help-kbd">?</kbd></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="header">
+  <div class="header-left">
+    <button class="btn-sidebar-toggle" id="btn-sidebar" title="Toggle sidebar (B)">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="1" y="1" width="12" height="12" rx="2"/>
+        <line x1="5" y1="1" x2="5" y2="13"/>
+        <line x1="8" y1="5" x2="10" y2="7"/>
+        <line x1="8" y1="9" x2="10" y2="7"/>
+      </svg>
+    </button>
+    <h1>SDV - Simple Doc Viewer</h1>
+    <span class="path-badge" id="path-badge"></span>
+    <button class="btn-pick-folder" id="btn-pick-folder" title="Open folder picker">
+      <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M1.5 3.5v9a1 1 0 001 1h11a1 1 0 001-1v-7a1 1 0 00-1-1h-5l-1.5-2h-4.5a1 1 0 00-1 1z"/>
+      </svg>
+    </button>
+  </div>
+  <div class="header-right">
+    <button class="header-btn" id="btn-close-all" title="Close all tabs" style="display:none">Close all</button>
+    <button class="theme-toggle" id="btn-theme" title="Toggle light/dark mode (T)">
+      <span class="theme-icon theme-moon">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M6 .278a.77.77 0 0 1 .08.858 7.208 7.208 0 0 0-.878 3.46c0 4.021 3.278 7.277 7.318 7.277.527 0 1.04-.055 1.533-.16a.787.787 0 0 1 .81.316.733.733 0 0 1-.031.893A8.349 8.349 0 0 1 8.344 16C3.734 16 0 12.286 0 7.71 0 4.266 2.114 1.312 5.124.06A.752.752 0 0 1 6 .278z"/></svg>
+      </span>
+      <div class="theme-track"><div class="theme-knob"></div></div>
+      <span class="theme-icon theme-sun">
+        <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 11a3 3 0 1 1 0-6 3 3 0 0 1 0 6zm0 1a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM8 0a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 0zm0 13a.5.5 0 0 1 .5.5v2a.5.5 0 0 1-1 0v-2A.5.5 0 0 1 8 13zm8-5a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2a.5.5 0 0 1 .5.5zM3 8a.5.5 0 0 1-.5.5h-2a.5.5 0 0 1 0-1h2A.5.5 0 0 1 3 8zm10.657-5.657a.5.5 0 0 1 0 .707l-1.414 1.415a.5.5 0 1 1-.707-.708l1.414-1.414a.5.5 0 0 1 .707 0zm-9.193 9.193a.5.5 0 0 1 0 .707L3.05 13.657a.5.5 0 0 1-.707-.707l1.414-1.414a.5.5 0 0 1 .707 0zm9.193 2.121a.5.5 0 0 1-.707 0l-1.414-1.414a.5.5 0 0 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .707zM4.464 4.465a.5.5 0 0 1-.707 0L2.343 3.05a.5.5 0 1 1 .707-.707l1.414 1.414a.5.5 0 0 1 0 .708z"/></svg>
+      </span>
+    </button>
+    <button class="header-btn" id="btn-source" title="Toggle view mode (S)">Preview</button>
+    <button class="header-btn" id="btn-wrap" title="Toggle word wrap">Wrap</button>
+    <button class="header-btn" id="btn-pdf" title="Print (P)">Print</button>
+    <button class="header-btn" id="btn-find" title="Find in document (Ctrl+F)">Find</button>
+    <button class="header-btn" id="btn-reload" title="Reload active document only (R)">
+      <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
+    </button>
+    <button class="btn-help" id="btn-help" title="Keyboard shortcuts (?)">?</button>
+  </div>
+</div>
+
+<div class="main">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="search-wrap">
+        <input type="text" id="search-input" placeholder="Search files &amp; content...">
+        <button class="search-clear" id="search-clear" title="Clear search">&#10005;</button>
+      </div>
+    </div>
+    <div class="sidebar-opts">
+      <button class="sidebar-opt" id="btn-hidden" title="Show hidden files">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1 8s3-5 7-5 7 5 7 5-3 5-7 5-7-5-7-5z"/>
+          <circle cx="8" cy="8" r="2"/>
+        </svg>
+        Hidden
+      </button>
+      <div class="sort-sep"></div>
+      <button class="sidebar-opt sort-btn active" id="sort-name" data-sort="name" title="Sort by name">Name <span class="sort-arrow">&#9650;</span></button>
+      <button class="sidebar-opt sort-btn" id="sort-size" data-sort="size" title="Sort by size">Size <span class="sort-arrow">&#9662;</span></button>
+      <button class="sidebar-opt sort-btn" id="sort-modified" data-sort="modified" title="Sort by modified time">Modified <span class="sort-arrow">&#9662;</span></button>
+      <button class="sidebar-opt sort-btn" id="sort-created" data-sort="created" title="Sort by created time">Created <span class="sort-arrow">&#9662;</span></button>
+      <button class="sidebar-opt sort-btn" id="sort-matches" data-sort="matchCount" title="Sort by match count" style="display:none">Matches <span class="sort-arrow">&#9662;</span></button>
+      <div class="sort-sep"></div>
+      <button class="sidebar-opt" id="btn-filter" title="Date &amp; match filters">
+        <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M1.5 2h13l-4.5 5.5v4.5l-4 2V7.5z"/>
+        </svg>
+        Filter
+      </button>
+    </div>
+    <div class="date-filter-panel" id="date-filter-panel">
+      <div class="date-filter-row">
+        <label>Modified:</label>
+        <input type="date" id="filter-mod-from" title="From">
+        <span class="date-sep">~</span>
+        <input type="date" id="filter-mod-to" title="To">
+      </div>
+      <div class="date-filter-row">
+        <label>Created:</label>
+        <input type="date" id="filter-cre-from" title="From">
+        <span class="date-sep">~</span>
+        <input type="date" id="filter-cre-to" title="To">
+      </div>
+      <div class="match-filter-row" id="match-filter-row" style="display:none">
+        <label>Matches:</label>
+        <input type="number" id="filter-match-min" min="0" placeholder="min">
+        <span class="date-sep">~</span>
+        <input type="number" id="filter-match-max" min="0" placeholder="max">
+      </div>
+      <div class="date-filter-actions">
+        <button id="date-filter-clear" title="Clear all filters">Clear</button>
+        <button id="date-filter-apply" class="btn-apply" title="Apply filters">Apply</button>
+      </div>
+    </div>
+    <div class="file-tree" id="file-tree"></div>
+  </div>
+  <div class="resize-handle" id="resize-handle"></div>
+  <div class="content-area">
+    <div class="content-tabs" id="tab-bar"></div>
+    <div class="find-bar" id="find-bar">
+      <input type="text" id="find-input" placeholder="Find in document...">
+      <span class="find-info" id="find-info"></span>
+      <button id="find-prev" title="Previous (Shift+Enter)">&#9650;</button>
+      <button id="find-next" title="Next (Enter)">&#9660;</button>
+      <button class="find-opt" id="find-whole" title="Whole word match">W</button>
+      <button id="find-close" title="Close (Esc)">&#10005;</button>
+    </div>
+    <div class="content-body" id="content-body">
+      <div class="welcome">
+        <div class="icon-large">&#128196;</div>
+        <h2>SDV - Simple Doc Viewer</h2>
+        <p>Documents, code, images, video, audio, PDF</p>
+        <div class="keys">
+          <kbd>.md</kbd><kbd>.pdf</kbd><kbd>.html</kbd><kbd>.js</kbd><kbd>.py</kbd><kbd>.json</kbd><kbd>.yaml</kbd><kbd>.sql</kbd>
+          <kbd>.png</kbd><kbd>.jpg</kbd><kbd>.mp4</kbd><kbd>.mp3</kbd><kbd>mermaid</kbd><kbd>KaTeX</kbd><kbd>+70 more</kbd>
+        </div>
+      </div>
+    </div>
+    <div class="status-bar empty" id="status-bar">
+      <span id="status-lines"></span>
+      <span class="status-sep">&#183;</span>
+      <span class="status-pct" id="status-pct"></span>
+    </div>
+  </div>
+</div>
+<div class="drop-overlay" id="drop-overlay">
+  <div class="drop-msg">&#128196; 파일을 놓으세요</div>
+</div>
+
+<script src="/client/app.js"></script>
+</body>
+</html>

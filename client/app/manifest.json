@@ -1,0 +1,24 @@
+{
+  "order": [
+    "state.js",
+    "helpers.js",
+    "api.js",
+    "dragdrop.js",
+    "navigation.js",
+    "tree.js",
+    "search.js",
+    "tabs.js",
+    "content.js",
+    "markdown.js",
+    "highlight.js",
+    "ui.js",
+    "print.js",
+    "ui2.js",
+    "media-zoom.js",
+    "find.js",
+    "search-wiring.js",
+    "mermaid-loader.js",
+    "shortcuts.js",
+    "main.js"
+  ]
+}

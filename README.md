@@ -4,7 +4,7 @@
 
 A lightweight local document viewer that lets you browse and read text files and Markdown documents from your filesystem — right in the browser.
 
-**Zero dependencies. Single file. Offline-first.**
+**Zero dependencies. No build step. Offline-first.**
 
 ![Browse and Render](docs/images/browse-and-render.gif)
 

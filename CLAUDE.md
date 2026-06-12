@@ -3,138 +3,104 @@
 ## 프로젝트 개요
 
 로컬 파일시스템의 텍스트/마크다운 문서를 브라우저에서 탐색하고 열람하는 경량 문서 뷰어.
-Node.js 단일 파일(`server.js`)로 구현, npm 의존성 0개.
+Node.js 내장 모듈만 사용, npm 의존성 0개. v0.77부터 서버 모듈 + 정적 클라이언트 구조.
 
-## 현재 버전: v0.72
+## 현재 버전: v0.77
 
 ### 핵심 기능
 - 파일 트리 탐색 (폴더 진입, 상위 이동, hidden 토글, OS 네이티브 폴더 피커)
 - 마크다운 렌더링 (커스텀 파서: 헤딩, 리스트, 테이블, 코드 블록, 각주, YAML frontmatter 카드)
 - 구문 강조 (JS, Python, Bash, CSS, HTML, JSON, YAML, SQL, Go, Rust, C/C++, Java, TypeScript)
-- Mermaid 다이어그램 (9종: Flowchart, Sequence, Class, State, ER, Gantt, Pie, Mindmap, Git Graph)
-- KaTeX 수학 렌더링 (인라인 `$...$`, 블록 `$$...$$`)
-- Day/Night 모드 (라이트/다크 테마 토글)
-- Split View (마크다운 소스 + 렌더링 동시 보기, 스크롤 동기화)
-- 탭 시스템 (다중 파일 열기, Ctrl/Cmd+클릭 복수 선택, 헤더 우상단 Close all/Selected)
-- **전문 검색** (파일명 + 본문 매칭, AND/OR 연산자, 매치 카운트 정렬·필터)
-- **문서 내 검색 (Ctrl+F)** — 하이라이트, N/M 카운터, 전체 단어 토글
-- **날짜 필터** (Modified/Created 각각 from~to)
-- **파일 관리** — Rename(F2)/Delete(Del)/**Copy Path**(📋 풀 경로 클립보드)
-- **PDF 인쇄** (Pretendard 웹폰트, 인쇄 최적화 CSS)
-- **미디어 뷰어** (이미지·비디오·오디오 인라인 재생, 줌 10~400%)
-- 스마트 시작 (포트 충돌 자동 해결 + 브라우저 자동 열기, localhost)
-- **파일 드래그 앤 드롭** (OS 탐색기 → 브라우저 창, 루트 외 파일도 chroot 자동 확장)
-- **CLI 파일 직접 열기** (`node server.js README.md` 형태)
-- **반응형 사이드바** (드래그 리사이즈 200~800px, 428px 이하 narrow 모드)
-- **마크다운 인라인 이미지** (상대 경로 해석 + `/api/image` 서빙)
+- Mermaid 다이어그램 (9종) + KaTeX 수학 렌더링
+- Day/Night 모드, Split View(소스+렌더 동시, 스크롤 동기화), 탭 시스템
+- 전문 검색 (파일명+본문, AND/OR 연산자), 문서 내 검색(Ctrl+F), 날짜 필터
+- 파일 관리 — Rename(F2)/Delete(Del)/Copy Path
+- PDF 인쇄, 미디어 뷰어(이미지·비디오·오디오, 줌), PWA 설치
+- 파일 드래그 앤 드롭(chroot 자동 확장), CLI 파일 직접 열기, 반응형 사이드바
 
-## 프로젝트 구조
+## 프로젝트 구조 (v0.77 리팩토링 — template literal 해체)
 
 ```
 simple-doc-viewer/
-  server.js                  <- 단일 파일 (Node.js 내장 모듈만 사용)
-  launcher.js                <- 컨텍스트 메뉴 런처 (서버 체크/kill/재시작/로깅)
+  server.js                  <- thin entry: CLI 파싱, 보안 게이트, 라우팅, 기동
+  server/
+    state.js                 <- 런타임 가변 상태 (rootDir, initialFile, port, noOpen)
+    config.js                <- 상수 (확장자 화이트리스트, MAX_FILE_SIZE, HIDDEN_NAMES)
+    util.js                  <- isTextFile, isPathSafe(경로 봉쇄), isHiddenFile
+    respond.js               <- sendJSON, sendError, handlePostBody(JSON 강제)
+    mermaid-download.js      <- 첫 실행 시 CDN 다운로드
+    pick-folder.ps1          <- Windows IFileDialog 폴더 피커 (PowerShell)
+    routes/
+      list.js read.js search.js manage.js(rename·delete) media.js(image·media)
+      chroot.js pick-folder.js config.js(부트스트랩) static.js(정적 서빙)
+  client/
+    index.html               <- HTML 골격 (style.css·app.js 링크)
+    style.css                <- 전체 CSS
+    app/
+      manifest.json          <- 결합 순서 정의 (order 배열)
+      state.js helpers.js api.js dragdrop.js navigation.js tree.js search.js
+      tabs.js content.js markdown.js highlight.js ui.js print.js ui2.js
+      media-zoom.js find.js search-wiring.js mermaid-loader.js shortcuts.js main.js
+  launcher.js                <- 컨텍스트 메뉴 런처
   install-context-menu.js    <- Windows 컨텍스트 메뉴 등록/해제
-  sdv-open.vbs               <- (생성됨) 콘솔 숨김 래퍼
-  lib/
-    mermaid.min.js            <- 첫 실행 시 CDN에서 자동 다운로드
-  reference/                  <- 프로토타입 및 테스트 문서
-  docs/                       <- 설계 문서, 개발 일지
-  PRD.md                      <- 요구사항 정의서
+  lib/ public/ reference/ docs/ scripts/
 ```
 
-## 기술 제약
+## 핵심 설계 원칙
 
-### Template Literal 제약 (가장 중요)
-`getHTML()` 함수가 template literal(\`...\`)로 전체 HTML을 반환하므로,
-클라이언트 JS 코드 전체에 다음 규칙이 적용된다.
+### 클라이언트 결합 서빙 (hoisting 의미 보존)
+`/client/app.js`는 `client/app/*.js`를 **manifest.json의 order 순서로 결합해 단일 스크립트로 서빙**한다
+(`server/routes/static.js`의 `buildAppJs()`). 파일 분리는 개발 편의용이고, 브라우저는 분리 전과
+동일한 한 덩어리 스크립트를 받으므로 파일 간 전역 함수 호이스팅 의존이 그대로 보존된다.
+**새 클라이언트 파일 추가 시 manifest.json의 order에 반드시 등록할 것.**
 
-**1. backtick · `${}` 금지 — single quote + 문자열 연결만 사용**
-```javascript
-// 금지
-var html = `<div class="${cls}">`;
-// 허용
-var html = '<div class="' + cls + '">';
-```
+### 부트스트랩 — /api/config
+구버전의 template literal 서버 값 주입(rootDir, INITIAL_FILE) 2곳은 `/api/config` 런타임 fetch로
+대체됐다 (`client/app/main.js`). 클라이언트 파일은 100% 정적이다.
 
-**2. 이스케이프 시퀀스 이중 이스케이프 필수**
+### ~~Template Literal 제약~~ (v0.77에서 폐기)
+클라이언트 JS가 server.js의 template literal 안에 살던 시절의 제약(backtick·`${}` 금지,
+`\\n` 이중 이스케이프, served-JS 문법 검증 의무)은 **전부 폐기**됐다. client/app/*.js는
+일반 JS 파일이며 현대 문법 사용 가능. 단 기존 코드는 single quote + 문자열 연결 스타일이므로
+수정 시 주변 스타일을 따른다.
 
-Node.js가 template literal을 평가할 때 `\n`, `\t` 등을 실제 문자로 변환하므로,
-브라우저에 `\n`을 전달하려면 server.js 소스에 `\\n`으로 작성해야 한다.
-
-| server.js 소스 | 브라우저 수신 | 용도 |
-|----------------|--------------|------|
-| `'\\n'` | `'\n'` | 줄바꿈 문자 |
-| `'\\t'` | `'\t'` | 탭 문자 |
-| `/\\.([^.]+)/` | `/\.([^.]+)/` | regex 이스케이프 |
-| `'\\\\path'` | `'\\path'` | 백슬래시 리터럴 |
-
-```javascript
-// 금지 (Node.js가 \n을 개행으로 변환 → JS 구문 오류)
-data.content.split('\n')
-
-// 허용
-data.content.split('\\n')
-```
-
-**3. 변경 후 검증 — served JS 문법 확인**
+### 변경 후 검증
 ```bash
-node -e "
-const http = require('http');
-http.get('http://localhost:3000/', (res) => {
-  let d = ''; res.on('data', c => d += c);
-  res.on('end', () => {
-    const m = d.match(/<script>([\s\S]*?)<\/script>/);
-    if (m) { try { new Function(m[1]); console.log('JS OK'); }
-             catch(e) { console.log('JS ERROR:', e.message); } }
-  });
-});
-"
+# 서버 모듈 문법
+node --check server.js && for f in server/**/*.js; do node --check "$f"; done
+# 결합된 클라이언트 문법
+node -e "new Function(require('./server/routes/static').buildAppJs()); console.log('OK')"
 ```
 
-### server.js 내부 구조 (약 2300줄)
-| 섹션 | 라인 범위 | 설명 |
-|------|-----------|------|
-| 모듈 & 설정 | 1-52 | 포트, 루트, 확장자 목록, INITIAL_FILE 파싱 |
-| 유틸리티 함수 | 54-75 | 텍스트 판별, 경로 검증, JSON 응답 |
-| Mermaid 다운로더 | 77-110 | HTTPS redirect following |
-| API 핸들러 | 112-260 | /api/list, /api/read, /api/image, /api/chroot |
-| HTML 프론트엔드 | 260~ | getHTML() — CSS, Body, Client JS |
-| 서버 시작 | 마지막 | createServer, 라우팅, listen |
+## API 엔드포인트
 
-### API 엔드포인트
 | Method | Endpoint | 설명 |
 |--------|----------|------|
-| GET | `/` | 프론트엔드 SPA 서빙 |
-| GET | `/api/list?path=...` | 디렉토리 목록 (JSON) |
-| GET | `/api/read?path=...` | 파일 내용 읽기 (JSON) |
-| GET | `/api/image?path=...` | 이미지 파일 서빙 (GIF, PNG, JPG, SVG, WebP) |
-| GET | `/api/chroot?path=...` | 서버 루트 변경 (드래그 앤 드롭용) |
-| GET | `/lib/mermaid.min.js` | Mermaid 라이브러리 |
+| GET | `/` | client/index.html 서빙 |
+| GET | `/client/app.js`, `/client/style.css` | 결합 JS / CSS |
+| GET | `/api/config` | 부트스트랩 (rootDir, initialFile) |
+| GET | `/api/list?path=` `/api/read?path=` `/api/search?q=&path=` | 조회 (경로 봉쇄 적용) |
+| GET | `/api/image?path=` `/api/media?path=` | 미디어 (media는 Range 스트리밍) |
+| POST | `/api/chroot` `/api/rename` `/api/delete` `/api/pick-folder` | 상태 변경 (JSON 강제) |
+| GET | `/sw.js` `/public/*` `/lib/katex/*` `/lib/mermaid.min.js` | PWA·라이브러리 |
 
-### 보안
-- 경로 순회 방지: `path.resolve()` 후 `ROOT_DIR` 접두사 확인
-- 바이너리 차단: 확장자 화이트리스트 기반
-- 대용량 차단: 1MB 초과 거부
-- 로컬 전용: `127.0.0.1` 바인딩
+## 보안 (v0.76 핫픽스 기준)
+
+- **경로 봉쇄**: `isPathSafe()` — realpath 기반 rootDir prefix 검증, 전 파일 API 적용. 루트 확장은 chroot(POST)만
+- **CSRF/DNS rebinding**: 전 요청 Host/Origin 검증 (localhost 외 403), POST는 application/json 강제(415)
+- **HTML 미리보기 격리**: `sandbox="allow-scripts"` iframe + srcdoc — 스크립트는 실행되나 opaque origin이라 SDV API 접근 불가 (Origin: null → 403)
+- **명령 주입 차단**: 피커는 execFile 인자 배열만 사용 (셸 문자열 조립 금지)
+- 바이너리 차단(확장자 화이트리스트), 1MB 텍스트 캡, 127.0.0.1 바인딩
 
 ## 실행 방법
 
 ```bash
-# 현재 폴더를 문서 루트로
-node server.js
+node server.js                # 현재 폴더를 문서 루트로
+node server.js --root /path   # 특정 폴더 지정
+node server.js README.md      # 파일 직접 열기
 
-# 특정 폴더 지정
-node server.js --root /path/to/docs
-
-# 파일 직접 열기 (v0.52+)
-node server.js README.md
-node server.js docs/report.md
-
-# 글로벌 alias (sdv) 설정 완료 시
-sdv              # 현재 폴더
-sdv /path/to/docs  # 특정 폴더
-sdv README.md    # 파일 직접 열기
+# 글로벌 alias
+sdv / sdv /path / sdv README.md
 ```
 
 ---
