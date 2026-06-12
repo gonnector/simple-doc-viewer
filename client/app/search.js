@@ -68,15 +68,11 @@ var _searchParsedQ = null;
 
 function doSearch(query) {
   if (!query) { _searchResults = null; renderTree(); return; }
-  var xhr = new XMLHttpRequest();
-  xhr.open('GET', '/api/search?path=' + encodeURIComponent(state.currentPath) + '&q=' + encodeURIComponent(query));
-  xhr.onload = function() {
-    var resp = JSON.parse(xhr.responseText);
+  apiSearch(state.currentPath, query, function(resp) {
     _searchResults = resp.results || [];
     _searchParsedQ = parseQueryClient(query);
     renderTree();
-  };
-  xhr.send();
+  });
 }
 
 function renderTree() {
@@ -271,11 +267,7 @@ function startRename(treeItem, filePath, oldName) {
     }
     var dir = filePath.substring(0, filePath.lastIndexOf('/'));
     var newPath = dir + '/' + newName;
-    var xhr = new XMLHttpRequest();
-    xhr.open('POST', '/api/rename');
-    xhr.setRequestHeader('Content-Type', 'application/json');
-    xhr.onload = function() {
-      var resp = JSON.parse(xhr.responseText);
+    apiRename(filePath, newPath, function(resp) {
       if (resp.ok) {
         // Update tab if open
         if (state.openTabs.indexOf(filePath) !== -1) {
@@ -296,8 +288,7 @@ function startRename(treeItem, filePath, oldName) {
         nameSpan.textContent = oldName;
         alert(resp.error || 'Rename failed');
       }
-    };
-    xhr.send(JSON.stringify({ oldPath: filePath, newPath: newPath }));
+    });
   }
 
   input.addEventListener('keydown', function(ev) {
@@ -310,11 +301,7 @@ function startRename(treeItem, filePath, oldName) {
 
 function doDelete(filePath, fileName) {
   if (!confirm('Delete "' + fileName + '"?')) return;
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/delete');
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.onload = function() {
-    var resp = JSON.parse(xhr.responseText);
+  apiDelete(filePath, function(resp) {
     if (resp.ok) {
       // Close tab if open
       if (state.openTabs.indexOf(filePath) !== -1) {
@@ -324,8 +311,7 @@ function doDelete(filePath, fileName) {
     } else {
       alert(resp.error || 'Delete failed');
     }
-  };
-  xhr.send(JSON.stringify({ path: filePath }));
+  });
 }
 
 function doCopyPath(filePath, btn) {

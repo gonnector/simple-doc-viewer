@@ -119,15 +119,12 @@ $pathBadge.addEventListener('click', function() {
 
 // --- Folder Picker ---
 document.getElementById('btn-pick-folder').addEventListener('click', function() {
-  var xhr = new XMLHttpRequest();
-  xhr.open('POST', '/api/pick-folder');
-  xhr.setRequestHeader('Content-Type', 'application/json');
-  xhr.timeout = 600000;
-  xhr.onload = function() {
-    var resp = JSON.parse(xhr.responseText);
-    if (resp.root) navigateTo(resp.root);
-  };
-  xhr.send('{}');
+  apiPickFolder(function(resp) {
+    if (resp.root) {
+      state.rootDir = resp.root;
+      navigateTo(resp.root);
+    }
+  });
 });
 
 $btnTheme.addEventListener('click', function() {

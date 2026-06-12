@@ -15,18 +15,19 @@ function renderContent(preserveScroll) {
 
   // Media files — render directly without text content
   if (isMediaExt(tab.ext)) {
-    var mediaSrc = '/api/media?path=' + encodeURIComponent(state.activeTab);
+    // 주의: 전역 함수 mediaSrc()와 이름 충돌 방지를 위해 로컬 변수는 mediaUrl
+    var mediaUrl = mediaSrc(state.activeTab);
     var showZoom = !!(MEDIA_IMG[tab.ext] || MEDIA_VID[tab.ext]) && !MEDIA_DOC[tab.ext];
     var mediaHtml = '<div class="media-viewer' + (MEDIA_DOC[tab.ext] ? ' pdf-mode' : '') + '">';
     mediaHtml += '<div class="media-content">';
     if (MEDIA_IMG[tab.ext]) {
-      mediaHtml += '<img id="media-target" src="' + mediaSrc + '" alt="' + escHtml(tab.name) + '">';
+      mediaHtml += '<img id="media-target" src="' + mediaUrl + '" alt="' + escHtml(tab.name) + '">';
     } else if (MEDIA_VID[tab.ext]) {
-      mediaHtml += '<video id="media-target" src="' + mediaSrc + '" controls preload="metadata"></video>';
+      mediaHtml += '<video id="media-target" src="' + mediaUrl + '" controls preload="metadata"></video>';
     } else if (MEDIA_AUD[tab.ext]) {
-      mediaHtml += '<audio src="' + mediaSrc + '" controls preload="metadata"></audio>';
+      mediaHtml += '<audio src="' + mediaUrl + '" controls preload="metadata"></audio>';
     } else if (MEDIA_DOC[tab.ext]) {
-      mediaHtml += '<iframe class="pdf-frame" src="' + mediaSrc + '"></iframe>';
+      mediaHtml += '<iframe class="pdf-frame" src="' + mediaUrl + '"></iframe>';
     }
     mediaHtml += '</div>';
     if (showZoom) {

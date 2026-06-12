@@ -124,7 +124,7 @@ var md = (function() {
     // Images
     text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m, alt, src) {
       if (_base && src.indexOf('http') !== 0 && src.charAt(0) !== '/') {
-        src = '/api/image?path=' + encodeURIComponent(_base + '/' + src);
+        src = imageSrc(_base + '/' + src); // 어댑터: 브라우저=/api/image, Tauri=asset protocol
       }
       return '<img src="' + escAttr(sanitizeUrl(src)) + '" alt="' + escAttr(alt) + '" loading="lazy">';
     });

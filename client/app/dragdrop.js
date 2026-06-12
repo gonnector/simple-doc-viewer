@@ -2,6 +2,26 @@
 var $dropOverlay = document.getElementById('drop-overlay');
 var _dragDepth = 0;
 
+// Tauri: 네이티브 drag-drop 이벤트가 실제 절대 경로를 제공 (브라우저판 uri-list 추정보다 정확).
+// dragDropEnabled=true에서는 DOM drop 이벤트가 억제되므로 아래 DOM 리스너는 동작하지 않음
+if (typeof sdvIsTauri === 'function' && sdvIsTauri()) {
+  window.__TAURI__.event.listen('tauri://drag-enter', function() {
+    $dropOverlay.classList.add('active');
+  });
+  window.__TAURI__.event.listen('tauri://drag-leave', function() {
+    $dropOverlay.classList.remove('active');
+  });
+  window.__TAURI__.event.listen('tauri://drag-drop', function(ev) {
+    $dropOverlay.classList.remove('active');
+    var paths = (ev.payload && ev.payload.paths) || [];
+    if (paths.length === 0) return;
+    var fp = String(paths[0]).replace(/\\/g, '/');
+    var dir = fp.substring(0, fp.lastIndexOf('/'));
+    var name = fp.substring(fp.lastIndexOf('/') + 1);
+    dropOpenFile(fp, dir, name);
+  });
+}
+
 document.addEventListener('dragenter', function(e) {
   if (e.dataTransfer && e.dataTransfer.types && e.dataTransfer.types.indexOf('Files') !== -1) {
     e.preventDefault();
