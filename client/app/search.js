@@ -2,7 +2,7 @@
 function parseQueryClient(q) {
   var orGroups = q.split(/[,|]/).map(function(g) { return g.trim(); }).filter(Boolean);
   return orGroups.map(function(group) {
-    return group.split(/[s&]+/).map(function(t) { return t.trim().toLowerCase(); }).filter(Boolean);
+    return group.split(/[\s&]+/).map(function(t) { return t.trim().toLowerCase(); }).filter(Boolean);
   });
 }
 

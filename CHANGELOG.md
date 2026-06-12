@@ -6,6 +6,25 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.78] - 2026-06-12
+
+### Security
+- **마크다운 렌더러 XSS 일괄 차단** (기획안 Phase 3, SEC-4·BUG-5) — inlineFormat을 placeholder-first 구조로 재편: 인라인 코드·수식·화이트리스트 HTML 태그를 먼저 추출하고 잔여 `<>`를 전면 이스케이프 (raw HTML passthrough 차단). 화이트리스트 태그의 `on*` 이벤트 핸들러·`javascript:`/`vbscript:`/`data:` 스킴 제거. img/link 속성 따옴표 이스케이프 + URL 스킴 화이트리스트. `<summary>` 텍스트 이스케이프. 단위 테스트 28건 신설(`scripts/dev/test-markdown.js` — 분리 덕에 파서를 Node에서 직접 테스트 가능해짐).
+
+### Fixed
+- **검색 하이라이트 오동작** (BUG-2) — AND 쿼리 split regex가 template literal 시절 cook 과정에서 `/[\s&]+/` → `/[s&]+/`로 변질돼 있던 것 교정
+- **마크다운 테이블 빈 셀 드롭** (BUG-3) — 바깥 파이프만 제거 후 분할하는 방식으로 교체, 열 밀림 해소
+- **UTF-8 BOM 잔존** (BUG-4 부분) — /api/read에서 BOM 제거. cp949 자동 감지는 무의존성 제약상 보류(알려진 한계)
+- **launcher 콜백 이중 호출** (BUG-7) — alive 체크 timeout 시 서버가 2개 spawn되던 레이스를 done 래치로 차단
+- **들여쓰기된 닫는 코드 펜스 미인식** (BUG-8) — 문서 잔여 전체가 코드로 삼켜지던 문제
+- **mermaid 부분 다운로드 파일 잔존** (BUG-9) — temp 파일에 받고 완료 시에만 rename
+
+### Performance
+- **mermaid lazy load + 캐시** (PERF-2) — 2.9MB 라이브러리를 매 페이지 eager 로드하던 것을 mermaid 블록 발견 시에만 로드로 전환. `Cache-Control: max-age=86400` + ETag(304 지원) + 서버 메모리 버퍼 캐시. app.js 결합 결과도 mtime 기반 메모리 캐시
+- **검색 콘텐츠 캐시** (PERF-1) — mtime+size 불변 시 파일 재읽기 생략 (타이핑 중 반복 쿼리가 디렉토리 전 파일을 매번 full read하던 비용을 stat 1회로 축소). 중복 statSync 제거
+- **Ctrl+F 입력 debounce 200ms** (PERF-3) — 키스트로크마다 전체 DOM 하이라이트 재작성하던 입력 지연 제거
+- **테마 토글 즉각화** (PERF-4 lite) — CSS 변수 기반이므로 mermaid 문서가 아니면 전체 재파싱·재렌더 생략
+
 ## [0.77] - 2026-06-12
 
 ### Changed

@@ -16,6 +16,22 @@ function buildAppJs() {
   }).join('');
 }
 
+// 결합 결과 메모리 캐시 — app/ 파일 mtime 합이 같으면 재결합 생략
+let _appJsCache = null;
+function getAppJs() {
+  let stamp = 0;
+  const manifest = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'manifest.json'), 'utf8'));
+  for (const name of manifest.order) {
+    stamp += fs.statSync(path.join(APP_DIR, name)).mtimeMs;
+  }
+  if (_appJsCache && _appJsCache.stamp === stamp) return _appJsCache.js;
+  _appJsCache = { stamp: stamp, js: buildAppJs() };
+  return _appJsCache.js;
+}
+
+// mermaid.min.js (2.9MB) 메모리 캐시 — 매 요청 readFileSync 제거
+let _mermaidCache = null;
+
 function handleIndex(req, res) {
   res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8', 'Cache-Control': 'no-cache' });
   res.end(fs.readFileSync(path.join(CLIENT_DIR, 'index.html')));
@@ -25,7 +41,7 @@ function handleClientAsset(req, res, pathname) {
   if (pathname === '/client/app.js') {
     try {
       res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8', 'Cache-Control': 'no-cache' });
-      return res.end(buildAppJs());
+      return res.end(getAppJs());
     } catch (e) {
       return sendError(res, 'Client build failed: ' + e.message, 500);
     }
@@ -89,10 +105,23 @@ function handleKatex(req, res, pathname) {
 
 function handleMermaidLib(req, res) {
   const mermaidPath = path.join(PKG_ROOT, 'lib', 'mermaid.min.js');
-  if (fs.existsSync(mermaidPath)) {
-    res.writeHead(200, { 'Content-Type': 'application/javascript; charset=utf-8' });
-    res.end(fs.readFileSync(mermaidPath));
-  } else {
+  try {
+    const stat = fs.statSync(mermaidPath);
+    const etag = '"' + stat.size + '-' + Math.floor(stat.mtimeMs) + '"';
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { 'ETag': etag });
+      return res.end();
+    }
+    if (!_mermaidCache || _mermaidCache.etag !== etag) {
+      _mermaidCache = { etag: etag, buf: fs.readFileSync(mermaidPath) };
+    }
+    res.writeHead(200, {
+      'Content-Type': 'application/javascript; charset=utf-8',
+      'Cache-Control': 'public, max-age=86400',
+      'ETag': etag
+    });
+    res.end(_mermaidCache.buf);
+  } catch (e) {
     sendError(res, 'Mermaid not available', 404);
   }
 }

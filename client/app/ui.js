@@ -133,10 +133,11 @@ document.getElementById('btn-pick-folder').addEventListener('click', function() 
 $btnTheme.addEventListener('click', function() {
   state.lightMode = !state.lightMode;
   document.body.classList.toggle('light-mode', state.lightMode);
+  // 테마는 CSS 변수 기반이라 재렌더 불필요 — mermaid 다이어그램만 테마 재적용이 필요
   if (mermaidLoaded && window.mermaid) {
     window.mermaid.initialize({ startOnLoad: false, theme: state.lightMode ? 'default' : 'dark' });
+    renderContent(true);
   }
-  renderContent(true);
 });
 
 $btnHidden.addEventListener('click', function() {

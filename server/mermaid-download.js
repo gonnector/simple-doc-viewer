@@ -28,15 +28,32 @@ function downloadMermaid() {
         res.resume();
         return;
       }
-      const ws = fs.createWriteStream(mermaidPath);
+      // temp 경로에 쓰고 완료 시에만 rename — 부분 파일이 정상 파일로 오인되는 것 방지
+      const tmpPath = mermaidPath + '.download';
+      const ws = fs.createWriteStream(tmpPath);
+      function cleanupTmp() {
+        try { fs.unlinkSync(tmpPath); } catch (e) { /* ignore */ }
+      }
       res.pipe(ws);
+      res.on('error', function () {
+        console.warn('Warning: Mermaid download interrupted. Diagrams will not render.');
+        ws.destroy();
+        cleanupTmp();
+      });
       ws.on('finish', function () {
-        ws.close();
-        console.log('mermaid.min.js downloaded successfully.');
+        ws.close(function () {
+          try {
+            fs.renameSync(tmpPath, mermaidPath);
+            console.log('mermaid.min.js downloaded successfully.');
+          } catch (e) {
+            console.warn('Warning: Mermaid finalize failed: ' + e.message);
+            cleanupTmp();
+          }
+        });
       });
       ws.on('error', function () {
         console.warn('Warning: Mermaid download failed. Diagrams will not render.');
-        try { fs.unlinkSync(mermaidPath); } catch (e) { /* ignore */ }
+        cleanupTmp();
       });
     }).on('error', function () {
       console.warn('Warning: Mermaid download failed (network error). Diagrams will not render.');

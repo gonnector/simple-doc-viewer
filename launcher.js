@@ -132,17 +132,25 @@ function startServer(filePath) {
 // === 서버 alive 체크 ===
 
 function checkServerAlive(callback) {
+  // done 래치 — timeout 시 req.destroy()가 'error'도 발생시켜 callback이 2회 호출되던 문제 방지
+  // (2회 호출 시 서버가 2개 spawn되어 포트 레이스 발생)
+  var done = false;
+  function fire(alive) {
+    if (done) return;
+    done = true;
+    callback(alive);
+  }
   var req = http.get('http://127.0.0.1:' + PORT + '/', function (res) {
     // 응답이 오면 서버가 살아있음
     res.resume(); // 데이터 소비하여 연결 정리
-    callback(true);
+    fire(true);
   });
   req.on('error', function () {
-    callback(false);
+    fire(false);
   });
   req.setTimeout(2000, function () {
     req.destroy();
-    callback(false);
+    fire(false);
   });
 }
 

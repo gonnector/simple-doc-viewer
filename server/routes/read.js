@@ -35,7 +35,8 @@ function handleRead(req, res, query) {
       });
     }
 
-    const content = fs.readFileSync(filePath, 'utf-8');
+    // UTF-8 BOM 제거 (raw 뷰 잔존 방지)
+    const content = fs.readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
     sendJSON(res, {
       path: filePath, name: name, ext: ext,
       size: stat.size, content: content

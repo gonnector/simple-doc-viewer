@@ -72,6 +72,18 @@ var md = (function() {
     return escaped;
   }
 
+  // href/src 스킴 화이트리스트 — javascript:/vbscript:/data: 차단 (XSS)
+  function sanitizeUrl(u) {
+    var t = u.replace(/[\u0000-\u0020]+/g, '').toLowerCase();
+    if (t.indexOf('javascript:') === 0 || t.indexOf('vbscript:') === 0 || t.indexOf('data:') === 0) return '#';
+    return u;
+  }
+
+  // 속성 값용 — 전역 <> 이스케이프 이후 호출되므로 따옴표만 추가 처리
+  function escAttr(s) {
+    return s.replace(/"/g, '&quot;');
+  }
+
   function inlineFormat(text) {
     // Escape sequences: \* \# \[ etc → placeholder, restore at end
     var escapes = [];
@@ -80,37 +92,50 @@ var md = (function() {
       escapes.push(escHtml(ch));
       return ph;
     });
-    // Preserve HTML tags (kbd, br, sub, sup, etc.)
-    var htmlTags = [];
-    text = text.replace(/<(\/?(kbd|br|sub|sup|abbr|mark|ins|del|span|small|em|strong|b|i|u|s|a)(\s[^>]*)?\/?)>/gi, function(m) {
-      var ph = '\x00H' + htmlTags.length + '\x00';
-      htmlTags.push(m);
+    // Inline code / math → placeholder 우선 (아래 전역 <> 이스케이프와 이중 적용 방지)
+    var spans = [];
+    text = text.replace(/`([^`]+)`/g, function(m, c) {
+      var ph = '\x00C' + spans.length + '\x00';
+      spans.push('<code>' + escHtml(c) + '</code>');
       return ph;
     });
+    text = text.replace(/\$([^$]+)\$/g, function(m, tex) {
+      var ph = '\x00C' + spans.length + '\x00';
+      var rendered = null;
+      if (window.katex) {
+        try { rendered = window.katex.renderToString(tex, { throwOnError: false }); }
+        catch(e) { /* fall through */ }
+      }
+      spans.push(rendered || '<code class="math-inline">' + escHtml(tex) + '</code>');
+      return ph;
+    });
+    // Preserve whitelisted HTML tags (kbd, br, sub, sup, etc.)
+    // — on* 이벤트 핸들러·javascript: 계열 스킴은 제거 후 보존 (XSS)
+    var htmlTags = [];
+    text = text.replace(/<(\/?(kbd|br|sub|sup|abbr|mark|ins|del|span|small|em|strong|b|i|u|s|a)(\s[^>]*)?\/?)>/gi, function(m) {
+      var safe = m.replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, '');
+      safe = safe.replace(/\s(href|src)\s*=\s*(["']?)\s*(javascript|vbscript|data):[^"'>]*\2/gi, '');
+      var ph = '\x00H' + htmlTags.length + '\x00';
+      htmlTags.push(safe);
+      return ph;
+    });
+    // 비화이트리스트 HTML 전면 이스케이프 — raw passthrough 차단 (XSS)
+    text = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
     // Images
     text = text.replace(/!\[([^\]]*)\]\(([^)]+)\)/g, function(m, alt, src) {
       if (_base && src.indexOf('http') !== 0 && src.charAt(0) !== '/') {
         src = '/api/image?path=' + encodeURIComponent(_base + '/' + src);
       }
-      return '<img src="' + src + '" alt="' + alt + '" loading="lazy">';
+      return '<img src="' + escAttr(sanitizeUrl(src)) + '" alt="' + escAttr(alt) + '" loading="lazy">';
     });
     // Links
     text = text.replace(/\[([^\]]+)\]\(([^)]+)\)/g, function(m, t, h) {
-      if (h.charAt(0) === '#') return '<a href="' + h + '">' + t + '</a>';
-      return '<a href="' + h + '" target="_blank" rel="noopener">' + t + '</a>';
+      var safeH = escAttr(sanitizeUrl(h));
+      if (h.charAt(0) === '#') return '<a href="' + safeH + '">' + t + '</a>';
+      return '<a href="' + safeH + '" target="_blank" rel="noopener">' + t + '</a>';
     });
-    // Auto links
-    text = text.replace(/(^|[^"=])((https?:\/\/)[^\s<]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
-    // Inline code (before bold/italic to avoid conflicts)
-    text = text.replace(/`([^`]+)`/g, function(m, c) { return '<code>' + escHtml(c) + '</code>'; });
-    // Inline math $...$
-    text = text.replace(/\$([^$]+)\$/g, function(m, tex) {
-      if (window.katex) {
-        try { return window.katex.renderToString(tex, { throwOnError: false }); }
-        catch(e) { /* fall through */ }
-      }
-      return '<code class="math-inline">' + escHtml(tex) + '</code>';
-    });
+    // Auto links (\x00 placeholder 침범 방지)
+    text = text.replace(/(^|[^"=])((https?:\/\/)[^\s<\x00]+)/g, '$1<a href="$2" target="_blank" rel="noopener">$2</a>');
     // Bold italic (*** or ___)
     text = text.replace(/\*\*\*(.+?)\*\*\*/g, '<strong><em>$1</em></strong>');
     text = text.replace(/___(.+?)___/g, '<strong><em>$1</em></strong>');
@@ -126,13 +151,15 @@ var md = (function() {
     text = text.replace(/==(.+?)==/g, '<mark>$1</mark>');
     // Footnote refs
     text = text.replace(/\[\^(\d+)\]/g, '<sup class="footnote-ref"><a href="#fn$1" id="fnref$1">[$1]</a></sup>');
-    // Restore HTML tags
+    // Restore (function 형태 — 복원 문자열의 $& 등 특수 패턴 오해석 방지)
     for (var hi = 0; hi < htmlTags.length; hi++) {
-      text = text.replace('\x00H' + hi + '\x00', htmlTags[hi]);
+      text = text.replace('\x00H' + hi + '\x00', function() { return htmlTags[hi]; });
     }
-    // Restore escape sequences
+    for (var si = 0; si < spans.length; si++) {
+      text = text.replace('\x00C' + si + '\x00', function() { return spans[si]; });
+    }
     for (var ei = 0; ei < escapes.length; ei++) {
-      text = text.replace('\x00E' + ei + '\x00', escapes[ei]);
+      text = text.replace('\x00E' + ei + '\x00', function() { return escapes[ei]; });
     }
     return text;
   }
@@ -241,7 +268,8 @@ var md = (function() {
         var lang = codeMatch[1] || '';
         var code = [];
         i++;
-        while (i < lines.length && !lines[i].startsWith('```')) {
+        // 닫는 펜스는 들여쓰기 허용 (CommonMark: 최대 3칸 — 여기선 trim으로 관대하게)
+        while (i < lines.length && !lines[i].trim().startsWith('```')) {
           code.push(lines[i]); i++;
         }
         i++; // skip closing
@@ -282,10 +310,13 @@ var md = (function() {
         i++; continue;
       }
 
-      // Table
+      // Table — 바깥 파이프만 제거 후 split (빈 내부 셀 보존, 열 밀림 방지)
       if (line.indexOf('|') !== -1 && i + 1 < lines.length && lines[i+1].match(/^\|?\s*:?-+:?\s*\|/)) {
-        var headers = line.split('|').filter(function(c) { return c.trim(); }).map(function(c) { return c.trim(); });
-        var alignLine = lines[i+1].split('|').filter(function(c) { return c.trim(); }).map(function(c) { return c.trim(); });
+        var splitRow = function(l) {
+          return l.replace(/^\s*\|/, '').replace(/\|\s*$/, '').split('|').map(function(c) { return c.trim(); });
+        };
+        var headers = splitRow(line);
+        var alignLine = splitRow(lines[i+1]).filter(function(c) { return c; });
         var aligns = alignLine.map(function(a) {
           if (a.charAt(0) === ':' && a.charAt(a.length-1) === ':') return 'center';
           if (a.charAt(a.length-1) === ':') return 'right';
@@ -298,7 +329,7 @@ var md = (function() {
         html += '</tr></thead><tbody>';
         i += 2;
         while (i < lines.length && lines[i].indexOf('|') !== -1 && !lines[i].match(/^(\*{3,}|-{3,})/)) {
-          var cells = lines[i].split('|').filter(function(c) { return c.trim(); }).map(function(c) { return c.trim(); });
+          var cells = splitRow(lines[i]);
           html += '<tr>';
           for (var ci = 0; ci < cells.length; ci++) {
             html += '<td style="text-align:' + (aligns[ci] || 'left') + '">' + inlineFormat(cells[ci]) + '</td>';
@@ -377,7 +408,7 @@ var md = (function() {
         if (innerStart !== -1 && innerEnd !== -1) {
           innerContent = detailStr.substring(innerStart + 10, innerEnd).trim();
         }
-        html += '<details><summary>' + sumText + '</summary>' + parse(innerContent) + '</details>';
+        html += '<details><summary>' + inlineFormat(sumText) + '</summary>' + parse(innerContent) + '</details>';
         continue;
       }
       if (line.match(/^<\/?(summary)/i)) { i++; continue; }

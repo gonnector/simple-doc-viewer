@@ -148,8 +148,11 @@ function closeFind() {
   clearFindHighlights();
 }
 
+// 키스트로크마다 전체 DOM 하이라이트 재작성 방지 — 200ms debounce (사이드바 검색과 동일 패턴)
+var _findDebounce = null;
 $findInput.addEventListener('input', function() {
-  doFind();
+  clearTimeout(_findDebounce);
+  _findDebounce = setTimeout(doFind, 200);
 });
 
 document.getElementById('btn-find').addEventListener('click', openFind);

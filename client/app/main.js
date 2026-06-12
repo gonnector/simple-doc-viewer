@@ -9,7 +9,7 @@ fetch('/api/config')
       openFile(INITIAL_FILE_PATH, INITIAL_FILE_PATH.split('/').pop());
     } : null);
   });
-initMermaid();
+// initMermaid()는 eager 호출하지 않음 — renderMermaidBlocks()가 mermaid 블록 발견 시 lazy load
 
 // PWA Service Worker 등록
 if ('serviceWorker' in navigator) {
