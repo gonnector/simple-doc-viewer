@@ -9,7 +9,7 @@ const fs = require('fs');
 const path = require('path');
 const url = require('url');
 const https = require('https');
-const { exec, execSync } = require('child_process');
+const { exec, execFile, execSync } = require('child_process');
 
 const args = process.argv.slice(2);
 let PORT = 3000;
@@ -102,9 +102,32 @@ function isTextFile(filePath) {
   return TEXT_EXTENSIONS.has(ext);
 }
 
-function isPathSafe() {
-  // localhost-only tool bound to 127.0.0.1 — all local paths are safe
-  return true;
+function normalizePathForCompare(p) {
+  var n = p.replace(/\\/g, '/');
+  if (process.platform === 'win32') n = n.toLowerCase();
+  return n;
+}
+
+// 요청 경로가 현재 ROOT_DIR 안에 있는지 검증 (symlink 우회 방지를 위해 realpath 기준).
+// 아직 존재하지 않는 경로(rename 대상 등)는 부모 디렉토리의 realpath + leaf 이름으로 검증.
+// ROOT_DIR 확장은 /api/chroot(POST, Origin 검증)만이 유일한 통로.
+function isPathSafe(p) {
+  try {
+    var target = path.resolve(p);
+    var real;
+    try {
+      real = fs.realpathSync(target);
+    } catch (e) {
+      real = path.join(fs.realpathSync(path.dirname(target)), path.basename(target));
+    }
+    var root = fs.realpathSync(ROOT_DIR);
+    var a = normalizePathForCompare(real);
+    var b = normalizePathForCompare(root);
+    if (a === b) return true;
+    return a.startsWith(b.endsWith('/') ? b : b + '/');
+  } catch (e) {
+    return false;
+  }
 }
 
 function isHiddenFile(name) {
@@ -177,6 +200,7 @@ function handleSearch(req, res, query) {
   var q = (query.q || '').trim();
   if (!q) return sendJSON(res, { results: [] });
   var resolved = path.resolve(dirPath).replace(/\\/g, '/');
+  if (!isPathSafe(resolved)) return sendError(res, 'Access denied', 403);
   var parsedQ = parseSearchQuery(q);
   var results = [];
   try {
@@ -233,12 +257,22 @@ function sendError(res, message, status) {
   sendJSON(res, { error: message }, status || 400);
 }
 
-function handlePostBody(req, callback) {
+function handlePostBody(req, res, callback) {
+  // CSRF 방어 1차: application/json 강제 — text/plain 단순 요청의 preflight 우회 차단
+  var ct = (req.headers['content-type'] || '').split(';')[0].trim().toLowerCase();
+  if (ct !== 'application/json') {
+    return sendError(res, 'Content-Type must be application/json', 415);
+  }
   var body = '';
-  req.on('data', function(chunk) { body += chunk; });
+  req.on('data', function(chunk) {
+    body += chunk;
+    if (body.length > 1024 * 1024) req.destroy();
+  });
   req.on('end', function() {
-    try { callback(JSON.parse(body)); }
-    catch(e) { /* ignore parse error */ }
+    var parsed;
+    try { parsed = JSON.parse(body); }
+    catch(e) { return sendError(res, 'Invalid JSON body'); }
+    callback(parsed);
   });
 }
 
@@ -401,9 +435,10 @@ function handleImage(req, res, query) {
 }
 
 // === [4c] Chroot 핸들러 (drag-drop용 루트 변경) ===
-function handleChroot(req, res, query) {
-  if (!query.path) return sendError(res, 'Path required');
-  const newRoot = path.resolve(query.path).replace(/\\/g, '/');
+// 상태 변경 엔드포인트 — POST 전용 (라우터에서 강제), CSRF는 Origin/Host 검증으로 차단
+function handleChroot(req, res, body) {
+  if (!body.path) return sendError(res, 'Path required');
+  const newRoot = path.resolve(body.path).replace(/\\/g, '/');
   try {
     if (!fs.statSync(newRoot).isDirectory()) return sendError(res, 'Not a directory');
     ROOT_DIR = newRoot;
@@ -485,18 +520,10 @@ var WIN_PICK_FOLDER_PS1 = [
 ].join("\r\n");
 
 function handlePickFolder(req, res) {
-  var cmd, opts = { timeout: 120000, encoding: 'utf8' };
-  if (process.platform === 'win32') {
-    var tmpPs1 = path.join(require('os').tmpdir(), '_sdv_pick.ps1');
-    var initPath = ROOT_DIR.replace(/\//g, '\\');
-    fs.writeFileSync(tmpPs1, WIN_PICK_FOLDER_PS1, 'utf8');
-    cmd = 'powershell -NoProfile -ExecutionPolicy Bypass -STA -File "' + tmpPs1 + '" -InitialPath "' + initPath + '"';
-  } else if (process.platform === 'darwin') {
-    cmd = 'osascript -e \'set f to choose folder with prompt "Select folder" default location POSIX file "' + ROOT_DIR + '"\' -e \'POSIX path of f\'';
-  } else {
-    cmd = 'zenity --file-selection --directory --filename="' + ROOT_DIR + '/" 2>/dev/null || kdialog --getexistingdirectory "' + ROOT_DIR + '" 2>/dev/null';
-  }
-  exec(cmd, opts, function(err, stdout) {
+  // 명령 주입 방어: 셸 문자열 조립 금지 — execFile 인자 배열만 사용
+  var opts = { timeout: 120000, encoding: 'utf8' };
+
+  function onPicked(err, stdout) {
     var selected = (stdout || '').trim().replace(/\\/g, '/').replace(/\/+$/, '');
     if (!selected) return sendJSON(res, { cancelled: true });
     try {
@@ -504,7 +531,30 @@ function handlePickFolder(req, res) {
       ROOT_DIR = selected;
       sendJSON(res, { root: ROOT_DIR });
     } catch(e) { sendError(res, 'Directory not found: ' + e.message, 404); }
-  });
+  }
+
+  if (process.platform === 'win32') {
+    var tmpPs1 = path.join(require('os').tmpdir(), '_sdv_pick.ps1');
+    var initPath = ROOT_DIR.replace(/\//g, '\\');
+    fs.writeFileSync(tmpPs1, WIN_PICK_FOLDER_PS1, 'utf8');
+    execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-STA', '-File', tmpPs1, '-InitialPath', initPath], opts, onPicked);
+  } else if (process.platform === 'darwin') {
+    // AppleScript 리터럴 내부 삽입이므로 " 와 \ 를 AppleScript 규칙으로 이스케이프
+    var asPath = ROOT_DIR.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+    execFile('osascript', [
+      '-e', 'set f to choose folder with prompt "Select folder" default location POSIX file "' + asPath + '"',
+      '-e', 'POSIX path of f'
+    ], opts, onPicked);
+  } else {
+    execFile('zenity', ['--file-selection', '--directory', '--filename=' + ROOT_DIR + '/'], opts, function(err, stdout) {
+      if (err && !(stdout || '').trim()) {
+        // zenity 부재/취소 → kdialog 폴백
+        execFile('kdialog', ['--getexistingdirectory', ROOT_DIR], opts, onPicked);
+        return;
+      }
+      onPicked(err, stdout);
+    });
+  }
 }
 
 // === [5] HTML 프론트엔드 ===
@@ -1774,7 +1824,11 @@ function apiRead(filePath, callback) {
 }
 
 function apiChroot(dirPath, callback) {
-  fetch('/api/chroot?path=' + encodeURIComponent(dirPath))
+  fetch('/api/chroot', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ path: dirPath })
+  })
     .then(function(r) { return r.json(); })
     .then(callback)
     .catch(function(e) { callback({ error: e.message }); });
@@ -1874,11 +1928,8 @@ function navigateTo(dirPath, onDone) {
   apiList(dirPath, function(data) {
     if (data.error) {
       // Access denied — try chroot to expand ROOT_DIR
-      var xhr = new XMLHttpRequest();
-      xhr.open('GET', '/api/chroot?path=' + encodeURIComponent(dirPath));
-      xhr.onload = function() {
-        var cr = JSON.parse(xhr.responseText);
-        if (cr.root) {
+      apiChroot(dirPath, function(cr) {
+        if (cr && cr.root) {
           apiList(dirPath, function(data2) {
             if (data2.error) return;
             state.currentPath = data2.path;
@@ -1890,8 +1941,7 @@ function navigateTo(dirPath, onDone) {
             if (onDone) onDone();
           });
         }
-      };
-      xhr.send();
+      });
       return;
     }
     state.currentPath = data.path;
@@ -2599,19 +2649,19 @@ function renderContent(preserveScroll) {
         + renderRaw(data.content, data.ext)
         + '</div></div>'
         + '<div class="md-render-panel" style="padding:0">'
-        + '<iframe id="html-preview" style="width:100%;height:100%;border:none;background:#fff"></iframe>'
+        + '<iframe id="html-preview" sandbox="" style="width:100%;height:100%;border:none;background:#fff"></iframe>'
         + '</div></div>';
       setupSplitSync();
     } else if (state.viewMode === 'source') {
       $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';
     } else {
-      $content.innerHTML = '<iframe id="html-preview" style="width:100%;height:100%;border:none;background:#fff"></iframe>';
+      $content.innerHTML = '<iframe id="html-preview" sandbox="" style="width:100%;height:100%;border:none;background:#fff"></iframe>';
     }
     var hf = document.getElementById('html-preview');
     if (hf) {
-      hf.contentDocument.open();
-      hf.contentDocument.write(data.content);
-      hf.contentDocument.close();
+      // sandbox iframe은 same-origin이 아니므로 contentDocument 접근 불가 — srcdoc으로 주입
+      // (sandbox="" = 스크립트·same-origin 권한 모두 차단: 악성 HTML이 SDV API에 접근 불가)
+      hf.setAttribute('srcdoc', data.content);
     }
     if (!preserveScroll) $content.scrollTop = 0;
   } else {
@@ -3193,11 +3243,8 @@ $pathBadge.addEventListener('click', function() {
     if (!val) { finish(); return; }
     finish();
     // Chroot first, then try as directory
-    var xhr = new XMLHttpRequest();
-    xhr.open('GET', '/api/chroot?path=' + encodeURIComponent(val));
-    xhr.onload = function() {
-      var resp = JSON.parse(xhr.responseText);
-      if (resp.root) {
+    apiChroot(val, function(resp) {
+      if (resp && resp.root) {
         // It is a directory — chroot succeeded, navigate
         navigateTo(val);
       } else {
@@ -3205,22 +3252,17 @@ $pathBadge.addEventListener('click', function() {
         var parts = val.split('/');
         var fileName = parts.pop();
         var dirPath = parts.join('/');
-        var xhr2 = new XMLHttpRequest();
-        xhr2.open('GET', '/api/chroot?path=' + encodeURIComponent(dirPath));
-        xhr2.onload = function() {
-          var resp2 = JSON.parse(xhr2.responseText);
-          if (resp2.root) {
+        apiChroot(dirPath, function(resp2) {
+          if (resp2 && resp2.root) {
             navigateTo(dirPath, function() {
               openFile(val, fileName);
             });
           } else {
             alert('Path not found: ' + val);
           }
-        };
-        xhr2.send();
+        });
       }
-    };
-    xhr.send();
+    });
   }
 
   input.addEventListener('keydown', function(ev) {
@@ -3236,13 +3278,14 @@ $pathBadge.addEventListener('click', function() {
 // --- Folder Picker ---
 document.getElementById('btn-pick-folder').addEventListener('click', function() {
   var xhr = new XMLHttpRequest();
-  xhr.open('GET', '/api/pick-folder');
+  xhr.open('POST', '/api/pick-folder');
+  xhr.setRequestHeader('Content-Type', 'application/json');
   xhr.timeout = 120000;
   xhr.onload = function() {
     var resp = JSON.parse(xhr.responseText);
     if (resp.root) navigateTo(resp.root);
   };
-  xhr.send();
+  xhr.send('{}');
 });
 
 $btnTheme.addEventListener('click', function() {
@@ -3920,7 +3963,31 @@ if ('serviceWorker' in navigator) {
 }
 
 // === [6] 서버 시작 ===
+
+// DNS rebinding + CSRF 방어: Host가 localhost 계열이 아니거나,
+// Origin이 존재하는데 localhost 계열이 아니면 모든 요청 거부
+var LOCAL_HOST_RE = /^(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+var LOCAL_ORIGIN_RE = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/i;
+function isRequestAllowed(req) {
+  if (!LOCAL_HOST_RE.test(req.headers.host || '')) return false;
+  if (req.headers.origin && !LOCAL_ORIGIN_RE.test(req.headers.origin)) return false;
+  return true;
+}
+
+// 파일 스트리밍 공통 헬퍼: 스트림 에러 시 프로세스 크래시 방지 + 클라이언트 중단 시 fd 정리
+function streamFileToResponse(req, res, filePath, range) {
+  var stream = range ? fs.createReadStream(filePath, range) : fs.createReadStream(filePath);
+  stream.on('error', function() { res.destroy(); });
+  req.on('close', function() { stream.destroy(); });
+  stream.pipe(res);
+}
+
 const server = http.createServer(function (req, res) {
+  if (!isRequestAllowed(req)) {
+    res.writeHead(403, { 'Content-Type': 'text/plain' });
+    return res.end('Forbidden');
+  }
+
   const parsed = url.parse(req.url, true);
   const pathname = parsed.pathname;
 
@@ -3933,10 +4000,12 @@ const server = http.createServer(function (req, res) {
     handleRead(req, res, parsed.query);
   } else if (pathname === '/api/image') {
     handleImage(req, res, parsed.query);
-  } else if (pathname === '/api/chroot') {
-    handleChroot(req, res, parsed.query);
+  } else if (pathname === '/api/chroot' && req.method === 'POST') {
+    handlePostBody(req, res, function(body) {
+      handleChroot(req, res, body);
+    });
   } else if (pathname === '/api/rename' && req.method === 'POST') {
-    handlePostBody(req, function(body) {
+    handlePostBody(req, res, function(body) {
       if (!body.oldPath || !body.newPath) return sendError(res, 'oldPath and newPath required');
       var oldP = path.resolve(body.oldPath).replace(/\\/g, '/');
       var newP = path.resolve(body.newPath).replace(/\\/g, '/');
@@ -3947,7 +4016,7 @@ const server = http.createServer(function (req, res) {
       catch(e) { sendError(res, 'Rename failed: ' + e.message); }
     });
   } else if (pathname === '/api/delete' && req.method === 'POST') {
-    handlePostBody(req, function(body) {
+    handlePostBody(req, res, function(body) {
       if (!body.path) return sendError(res, 'path required');
       var dp = path.resolve(body.path).replace(/\\/g, '/');
       if (!isPathSafe(dp)) return sendError(res, 'Access denied', 403);
@@ -3959,7 +4028,7 @@ const server = http.createServer(function (req, res) {
         sendJSON(res, { ok: true, path: dp });
       } catch(e) { sendError(res, 'Delete failed: ' + e.message); }
     });
-  } else if (pathname === '/api/pick-folder') {
+  } else if (pathname === '/api/pick-folder' && req.method === 'POST') {
     handlePickFolder(req, res);
   } else if (pathname === '/api/search') {
     handleSearch(req, res, parsed.query);
@@ -3981,14 +4050,29 @@ const server = http.createServer(function (req, res) {
       const stat = fs.statSync(filePath);
       const range = req.headers.range;
       if (range) {
-        const parts = range.replace(/bytes=/, '').split('-');
-        const start = parseInt(parts[0], 10);
-        const end = parts[1] ? parseInt(parts[1], 10) : stat.size - 1;
+        // Range 엄격 파싱 — 비정상 값은 416 (NaN이 createReadStream에 닿으면 동기 throw → 크래시)
+        const m = /^bytes=(\d*)-(\d*)$/.exec(range);
+        let start, end;
+        if (m && m[1] !== '') {
+          start = parseInt(m[1], 10);
+          end = m[2] !== '' ? parseInt(m[2], 10) : stat.size - 1;
+        } else if (m && m[2] !== '') {
+          // suffix range: bytes=-N (마지막 N바이트)
+          start = Math.max(0, stat.size - parseInt(m[2], 10));
+          end = stat.size - 1;
+        } else {
+          start = NaN;
+        }
+        if (isNaN(start) || isNaN(end) || start > end || start >= stat.size) {
+          res.writeHead(416, { 'Content-Range': 'bytes */' + stat.size });
+          return res.end();
+        }
+        if (end >= stat.size) end = stat.size - 1;
         res.writeHead(206, { 'Content-Type': mime, 'Content-Range': 'bytes ' + start + '-' + end + '/' + stat.size, 'Accept-Ranges': 'bytes', 'Content-Length': end - start + 1 });
-        fs.createReadStream(filePath, { start: start, end: end }).pipe(res);
+        streamFileToResponse(req, res, filePath, { start: start, end: end });
       } else {
         res.writeHead(200, { 'Content-Type': mime, 'Content-Length': stat.size, 'Accept-Ranges': 'bytes', 'Cache-Control': 'public, max-age=3600' });
-        fs.createReadStream(filePath).pipe(res);
+        streamFileToResponse(req, res, filePath);
       }
     } catch (e) { sendError(res, 'Cannot read file: ' + e.message, 404); }
   } else if (pathname === '/sw.js' || pathname === '/public/sw.js') {
@@ -4001,8 +4085,12 @@ const server = http.createServer(function (req, res) {
       sendError(res, 'SW not found', 404);
     }
   } else if (pathname.startsWith('/public/')) {
-    // PWA 자원 (manifest, 아이콘 등)
-    const pubPath = path.join(__dirname, pathname.replace(/^\//, ''));
+    // PWA 자원 (manifest, 아이콘 등) — '..' 탈출 방지 prefix 검증
+    const pubBase = path.join(__dirname, 'public');
+    const pubPath = path.resolve(path.join(__dirname, pathname.replace(/^\//, '')));
+    if (!pubPath.startsWith(pubBase + path.sep)) {
+      return sendError(res, 'Access denied', 403);
+    }
     if (fs.existsSync(pubPath)) {
       const ext = path.extname(pubPath);
       const mimeMap = {
@@ -4018,7 +4106,11 @@ const server = http.createServer(function (req, res) {
       sendError(res, 'Not found', 404);
     }
   } else if (pathname.startsWith('/lib/katex/')) {
-    const katexFile = path.join(__dirname, pathname);
+    const katexBase = path.join(__dirname, 'lib', 'katex');
+    const katexFile = path.resolve(path.join(__dirname, pathname));
+    if (!katexFile.startsWith(katexBase + path.sep)) {
+      return sendError(res, 'Access denied', 403);
+    }
     if (fs.existsSync(katexFile)) {
       const ext = path.extname(katexFile);
       const mimeMap = { '.js': 'application/javascript', '.css': 'text/css', '.woff2': 'font/woff2', '.woff': 'font/woff', '.ttf': 'font/ttf' };

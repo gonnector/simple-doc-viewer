@@ -6,6 +6,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.76] - 2026-06-12
+
+### Security
+- **경로 봉쇄(containment) 실구현** — 스텁이었던 `isPathSafe()`를 realpath 기반 ROOT_DIR prefix 검증으로 교체. 모든 파일 API(read/list/search/rename/delete/image/media)가 현재 루트 밖 경로를 403으로 거부. 루트 확장은 `/api/chroot`(POST)만이 유일한 통로 (symlink 우회 방지 포함).
+- **CSRF/DNS rebinding 방어** — 전 요청에 Host/Origin 검증 게이트 추가 (localhost 계열 외 403). POST 바디는 `Content-Type: application/json` 강제 (text/plain 단순 요청의 preflight 우회 차단, 415). `/api/chroot`·`/api/pick-folder`를 POST 전용으로 전환.
+- **HTML 미리보기 sandbox 격리** — `.html` 파일 미리보기를 same-origin iframe(`contentDocument.write`)에서 `sandbox=""` + `srcdoc` 방식으로 교체. 악성 HTML 내 스크립트가 SDV API에 접근 불가.
+- **폴더 피커 명령 주입 차단** — 셸 문자열 조립(`exec`)을 `execFile` 인자 배열로 교체 (win32/darwin/linux 3-플랫폼). macOS AppleScript 리터럴은 별도 이스케이프.
+- **정적 핸들러 path traversal 차단** — `/public/*`, `/lib/katex/*`에 resolve 후 base 디렉토리 prefix 검증 추가.
+
+### Fixed
+- **비정상 Range 헤더로 인한 서버 크래시** — `/api/media`의 Range를 엄격 파싱(suffix range 지원, 비정상 값 416 응답)하고 read stream에 error 핸들러 + 클라이언트 중단 시 stream destroy 추가. 기존에는 `Range: bytes=abc-` 요청 하나로 서버 프로세스 전체가 종료됐음.
+
+### Added
+- **리팩토링·네이티브 전환 기획안** — `docs/plans/20260612_plan_sdv-refactoring-native-migration_TARS.md`. 4관점(보안/버그/성능/아키텍처) 전수 분석 결과 31건 + 4 Phase 실행 계획 + Tauri 전환 3안 비교.
+- 테스트 시나리오·검수 보고서 — `docs/testing/components/server-security/`, `docs/testing/reports/` (자동 19/19 PASS).
+
 ## [0.75] - 2026-04-17
 
 ### Added
