@@ -6,6 +6,23 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.79] - 2026-06-12
+
+### Added
+- **Tauri v2 네이티브 데스크톱 에디션** (기획안 Phase 4, 3안 채택). 브라우저판과 **단일 코드베이스로 공존** — `client/`를 공유하고 분기점은 `client/app/api.js` 어댑터 한 곳(`sdvIsTauri()`로 fetch ↔ Rust invoke 스왑).
+  - **Rust command 7종** (`src-tauri/src/commands.rs`) — get_boot_config/list_dir/read_file/search_dir/rename_path/delete_path/check_dir. HTTP `/api/*`와 동일한 응답 JSON 형태를 미러링(확장자 화이트리스트·1MB 캡·AND/OR 검색·BOM 제거 동치)
+  - **네이티브 대체**: 폴더 피커 = plugin-dialog(브라우저판 PowerShell 방식 제거), 미디어 = asset protocol(`convertFileSrc`, Range 스트리밍 내장), drag-drop = Tauri 네이티브 이벤트(절대경로 직접 제공), launcher/포트/kill = plugin-single-instance, CLI/`.md` 더블클릭 = get_boot_config + open-file 이벤트
+  - **빌드**: `npm run tauri build` → NSIS(3.7MB) + MSI(4.8MB) 인스톨러. 프론트는 `scripts/build-tauri-frontend.js`가 client/+lib/+public/을 dist-tauri/로 어셈블(번들러 없음). exe 메모리 ~33MB
+  - `withGlobalTauri: true` — 클라이언트는 `window.__TAURI__` 전역만 사용(npm import 없음)
+- **package.json / src-tauri/** 신규 — Tauri 스캐폴딩, capabilities(core+dialog), 아이콘 세트
+
+### Fixed
+- **어댑터 함수명 충돌** — `isTauri()`가 Tauri 런타임 주입 전역과 충돌(`SyntaxError: already declared`)하여 Tauri판 부팅 실패하던 것을 `sdvIsTauri()`로 개명하여 해결
+
+### Notes
+- fileAssociations(.md 더블클릭)는 의도적 미설정 — MMM이 .md를 점유 중이라 Dylan 결정 대기
+- 미검증(Dylan 실기/타 OS): PDF 인쇄·mkv/avi 코덱(WebView2 의존), macOS/Linux 빌드, CI
+
 ## [0.78] - 2026-06-12
 
 ### Security

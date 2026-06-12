@@ -5,7 +5,7 @@
 로컬 파일시스템의 텍스트/마크다운 문서를 브라우저에서 탐색하고 열람하는 경량 문서 뷰어.
 Node.js 내장 모듈만 사용, npm 의존성 0개. v0.77부터 서버 모듈 + 정적 클라이언트 구조.
 
-## 현재 버전: v0.78
+## 현재 버전: v0.79
 
 ### 핵심 기능
 - 파일 트리 탐색 (폴더 진입, 상위 이동, hidden 토글, OS 네이티브 폴더 피커)
@@ -45,6 +45,23 @@ simple-doc-viewer/
   install-context-menu.js    <- Windows 컨텍스트 메뉴 등록/해제
   lib/ public/ reference/ docs/ scripts/
 ```
+
+## Tauri 네이티브 에디션 (v0.79+)
+
+- **두 에디션 한 코드베이스**: 브라우저판(`node server.js`)과 Tauri판이 client/를 공유.
+  유일한 분기점은 `client/app/api.js` 어댑터 — `isTauri()`로 fetch ↔ invoke 스왑
+- **Rust command가 HTTP API 형태를 미러링** (`src-tauri/src/commands.rs`):
+  get_boot_config/list_dir/read_file/search_dir/rename_path/delete_path/check_dir.
+  응답 JSON 형태가 /api/*와 동일해야 함 — 한쪽 변경 시 양쪽 동기화 필수
+- **미디어**: asset protocol(`convertFileSrc`) — Range 스트리밍 내장. 폴더 피커: plugin-dialog
+  (브라우저판의 PowerShell 방식은 브라우저판에만 잔존)
+- **launcher.js/포트/kill 로직은 Tauri판에 없음** — plugin-single-instance가 대체
+  (두 번째 실행 → 기존 창 포커스 + 파일 인자는 open-file 이벤트로 전달)
+- **빌드**: `npm run tauri build` (beforeBuildCommand가 `scripts/build-tauri-frontend.js` 실행 —
+  client/ + lib/ + public/을 dist-tauri/로 어셈블, 번들러 없음). dev는 `npm run tauri dev`
+  (포트 3299에 node 서버 + webview)
+- **주의**: `withGlobalTauri: true` — 클라이언트는 `window.__TAURI__` 전역만 사용 (npm import 금지).
+  파일 연결(fileAssociations)은 의도적 미설정 — .md가 MMM과 충돌하므로 Dylan 결정 대기
 
 ## 핵심 설계 원칙
 
