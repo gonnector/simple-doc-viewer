@@ -848,3 +848,8 @@
 /* CSV 레이아웃 보강 (독립 리뷰 #1/#2): 단일 스크롤러 + sticky 안정 */
 #content-body.csv-mode { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
 #content-body.csv-mode .csv-wrap { flex: 1; min-height: 0; max-height: none; }
+
+/* 헤더 줌 컨트롤 */
+.zoom-ctrl { display: inline-flex; align-items: center; gap: 1px; }
+.zoom-ctrl .zoom-btn { min-width: 26px; padding: 4px 6px; font-weight: 600; }
+.zoom-ctrl .zoom-level { min-width: 48px; text-align: center; font-variant-numeric: tabular-nums; }

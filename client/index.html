@@ -67,6 +67,22 @@
         <span class="help-desc">Print</span>
         <div class="help-keys"><kbd class="help-kbd">P</kbd></div>
       </div>
+      <div class="help-row">
+        <span class="help-desc">Zoom in / out (text, code, CSV)</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><span class="help-kbd-sep">+</span><kbd class="help-kbd">+</kbd><span class="help-kbd-sep">/</span><kbd class="help-kbd">&#8722;</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Reset zoom to 100%</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><span class="help-kbd-sep">+</span><kbd class="help-kbd">0</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Zoom with mouse wheel</span>
+        <div class="help-keys"><kbd class="help-kbd">Ctrl</kbd><span class="help-kbd-sep">+</span><kbd class="help-kbd">Wheel</kbd></div>
+      </div>
+      <div class="help-row">
+        <span class="help-desc">Reload document + folder tree</span>
+        <div class="help-keys"><kbd class="help-kbd">R</kbd></div>
+      </div>
     </div>
     <div class="help-section">
       <div class="help-section-title">Search</div>
@@ -137,7 +153,12 @@
     <button class="header-btn" id="btn-wrap" title="Toggle word wrap">Wrap</button>
     <button class="header-btn" id="btn-pdf" title="Print (P)">Print</button>
     <button class="header-btn" id="btn-find" title="Find in document (Ctrl+F)">Find</button>
-    <button class="header-btn" id="btn-reload" title="Reload active document only (R)">
+    <span class="zoom-ctrl" title="Document zoom (Ctrl +/-/0, Ctrl+Wheel)">
+      <button class="header-btn zoom-btn" id="btn-zoom-out" title="Zoom out (Ctrl -)">&#8722;</button>
+      <button class="header-btn zoom-level" id="btn-zoom-level" title="Reset zoom (Ctrl 0)">100%</button>
+      <button class="header-btn zoom-btn" id="btn-zoom-in" title="Zoom in (Ctrl +)">&#43;</button>
+    </span>
+    <button class="header-btn" id="btn-reload" title="Reload document + folder tree (R)">
       <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" style="vertical-align:middle"><path d="M8 3a5 5 0 1 0 4.546 2.914.5.5 0 0 1 .908-.417A6 6 0 1 1 8 2v1z"/><path d="M8 4.466V.534a.25.25 0 0 1 .41-.192l2.36 1.966c.12.1.12.284 0 .384L8.41 4.658A.25.25 0 0 1 8 4.466z"/></svg>
     </button>
     <button class="btn-help" id="btn-help" title="Keyboard shortcuts (?)">?</button>

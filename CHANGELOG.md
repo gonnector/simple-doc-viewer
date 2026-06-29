@@ -6,6 +6,15 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.80.1] - 2026-06-30
+
+### Added
+- 헤더 줌 컨트롤(− % +): 클릭으로 확대/축소, % 클릭 시 100% 리셋, 현재 배율 실시간 표시
+- 도움말(?)에 줌(Ctrl +/−/0, Ctrl+휠) 및 "Reload document + folder tree (R)" 항목 추가
+
+### Fixed
+- 줌이 단축키만 있고 보이는 UI/도움말 설명이 없던 발견성 문제(Dylan 피드백)
+
 ## [0.80.0] - 2026-06-29
 
 ### Added
