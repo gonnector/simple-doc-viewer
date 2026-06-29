@@ -730,5 +730,18 @@ git -C "E:/projects/simple-doc-viewer" push origin master --tags
 - **Type consistency:** `sdvParseDelimited`/`sdvCsvColumnIsNumeric`/`sdvCsvNum`(Task3 정의) ↔ Task4 사용 일치. `renderCsv`(Task4 정의) ↔ content.js 호출 일치. `refreshTree`(Task1) ↔ reloadActiveDoc 호출 일치. `sdvZoomIn/Out/Reset`(Task2 doc-zoom.js 정의) ↔ shortcuts.js 호출 일치
 - **manifest 순서:** doc-zoom.js(media-zoom 뒤), csv-parser.js·csv-table.js(content 뒤) — 모두 main.js 앞, 런타임 호출이라 결합 순서 안전
 
+## 독립 리뷰 반영 수정 (2026-06-29, clean subagent)
+
+독립 검증(깨끗한 서브에이전트, 실제 소스 대조)에서 확인된 BLOCKING 4건 + 보완을 구현에 반영한다. 원 코드 블록 대비 델타:
+
+- **B1 (CSV 상태바):** `renderCsv` 끝에서 `docLines = 데이터 행수` 설정 + `updateStatusBar()` 호출. 정렬/토글 재렌더(reRender) 시에도 상태바 갱신. (기존 트레일링 updateStatusBar는 $content 스크롤 기반이라 CSV에 부정확)
+- **B2 (sticky × zoom):** CSS `zoom` 대상을 `.csv-wrap`이 아닌 `.csv-table`로. CSV는 별도 overflow 스크롤 컨테이너를 만들지 않고 기존 `#content` 스크롤을 사용 → sticky thead가 `#content` 기준으로 고정되고 상태바 %도 정상. `.csv-wrap`은 가로 스크롤 없이 단순 블록
+- **B3 (refreshTree 가드):** `$tree`에 `.rename-input`이 있으면 트리 재렌더 skip (이름변경 입력 보존)
+- **B4 (빈/헤더만 CSV):** `buildTable`에서 본문 0행이면 "데이터 없음" 행 표시. 파서 테스트에 `P('')`→`[]`, `P('\n')`→`[['']]` 추가
+- **N3 (Ctrl+휠):** 줌 대상(`.md-rendered`/`.raw-view`/`.csv-table`) 위에서만 preventDefault+줌. 미디어 위 휠은 통과
+- **N1:** CSV 클릭 핸들러는 CSV 컨텍스트에서만 동작 (조기 return)
+- **N4 (find+zoom):** zoom≠100%에서 find 중앙정렬 좌표 오차 가능 → 테스트 케이스 추가, 한계로 리포트 기록
+- **N5 (레거시 공존):** `install-context-menu.js`(레거시, node 에디션 우클릭)와 Tauri fileAssociations 공존 가능 → 테스트 리포트에 명시, deprecate 여부 Dylan 결정 항목
+
 ## 관련 문서
 - [설계 spec](file:///E:/projects/simple-doc-viewer/docs/plans/20260629_plan_sdv-upgrade-4features_TARS.md)
