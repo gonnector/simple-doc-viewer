@@ -115,6 +115,9 @@ function renderContent(preserveScroll) {
       hf.setAttribute('srcdoc', data.content);
     }
     if (!preserveScroll) $content.scrollTop = 0;
+  } else if (data.ext === 'csv' || data.ext === 'tsv') {
+    renderCsv(data);
+    if (!preserveScroll) $content.scrollTop = 0;
   } else {
     $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';
     if (!preserveScroll) $content.scrollTop = 0;

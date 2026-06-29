@@ -53,8 +53,12 @@ function updateStatusBar() {
     $statusBar.classList.add('empty');
     return;
   }
-  var pct = Math.min(100, Math.round(($content.scrollTop + $content.clientHeight) / $content.scrollHeight * 100));
-  $statusLines.textContent = docLines.toLocaleString() + ' lines';
+  // CSV 표는 내부 .csv-wrap이 스크롤 컨테이너 — 있으면 그 기준으로 % 계산
+  var sc = $content.querySelector('.csv-wrap') || $content;
+  var pct = sc.scrollHeight > sc.clientHeight
+    ? Math.min(100, Math.round((sc.scrollTop + sc.clientHeight) / sc.scrollHeight * 100))
+    : 100;
+  $statusLines.textContent = docLines.toLocaleString() + (sc === $content ? ' lines' : ' rows');
   $statusPct.textContent = pct + '%';
   $statusBar.classList.remove('empty');
 }

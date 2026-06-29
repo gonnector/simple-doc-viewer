@@ -820,3 +820,24 @@
   pointer-events: none; z-index: 9999;
 }
 #doc-zoom-toast.visible { opacity: 1; transform: translateY(0); }
+
+/* === CSV/TSV 표 뷰 === */
+.csv-toolbar { padding: 6px 10px; border-bottom: 1px solid var(--border, #333); }
+.csv-toolbar button { cursor: pointer; padding: 3px 10px; font-size: 12px; }
+.csv-notice { padding: 6px 10px; font-size: 12px; opacity: 0.75; }
+.csv-empty { padding: 16px; opacity: 0.7; }
+.csv-wrap { overflow: auto; max-height: 100%; }
+.csv-table { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+.csv-table th, .csv-table td {
+  border: 1px solid var(--border, #333); padding: 4px 8px;
+  text-align: left; white-space: nowrap; max-width: 360px;
+  overflow: hidden; text-overflow: ellipsis;
+}
+.csv-table thead th {
+  position: sticky; top: 0; z-index: 1; cursor: pointer;
+  background: var(--bg-elev, #1e1e1e); user-select: none;
+}
+.csv-table thead th:hover { filter: brightness(1.15); }
+.csv-arrow { margin-left: 4px; opacity: 0.8; font-size: 10px; }
+.csv-table tbody tr:nth-child(even) { background: rgba(127,127,127,0.06); }
+.csv-norows { text-align: center; opacity: 0.6; }

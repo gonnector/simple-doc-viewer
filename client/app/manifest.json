@@ -9,6 +9,8 @@
     "search.js",
     "tabs.js",
     "content.js",
+    "csv-parser.js",
+    "csv-table.js",
     "markdown.js",
     "highlight.js",
     "ui.js",
