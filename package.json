@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test:md": "node scripts/dev/test-markdown.js",
+    "test:csv": "node scripts/dev/test-csv.js",
     "build:frontend": "node scripts/build-tauri-frontend.js",
     "tauri": "tauri"
   },
