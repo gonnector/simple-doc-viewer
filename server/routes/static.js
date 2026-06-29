@@ -13,7 +13,7 @@ function buildAppJs() {
   const manifest = JSON.parse(fs.readFileSync(path.join(APP_DIR, 'manifest.json'), 'utf8'));
   return manifest.order.map(function(name) {
     return fs.readFileSync(path.join(APP_DIR, name), 'utf8');
-  }).join('');
+  }).join('\n'); // 파일 사이 개행 — trailing newline 누락 시 ASI 위험 방어 (독립 리뷰 #6)
 }
 
 // 결합 결과 메모리 캐시 — app/ 파일 mtime 합이 같으면 재결합 생략

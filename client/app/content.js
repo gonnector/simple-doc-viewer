@@ -1,5 +1,6 @@
 // --- Content rendering ---
 function renderContent(preserveScroll) {
+  $content.classList.remove('csv-mode'); // CSV 전용 레이아웃 클래스는 csv 렌더에서만 부여
   if (!state.activeTab) {
     showWelcome();
     return;

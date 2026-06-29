@@ -809,7 +809,9 @@
   .loading { text-align: center; padding: 2em; color: var(--text-dim); }
 
 /* === 문서 영역 줌 (텍스트 뷰 전용 — 미디어/사이드바 제외) === */
-.md-rendered, .raw-view, .csv-table { zoom: var(--doc-zoom, 1); }
+.md-rendered, .raw-view { zoom: var(--doc-zoom, 1); }
+/* CSV 표는 zoom 대신 font-size 스케일 — zoom이 sticky thead를 깨뜨리므로 (실측 확인) */
+.csv-table { font-size: calc(13px * var(--doc-zoom, 1)); }
 #doc-zoom-toast {
   position: fixed; bottom: 48px; right: 24px;
   background: rgba(0,0,0,0.78); color: #fff;
@@ -827,9 +829,10 @@
 .csv-notice { padding: 6px 10px; font-size: 12px; opacity: 0.75; }
 .csv-empty { padding: 16px; opacity: 0.7; }
 .csv-wrap { overflow: auto; max-height: 100%; }
-.csv-table { border-collapse: collapse; font-variant-numeric: tabular-nums; font-size: 13px; }
+/* border-collapse:separate — sticky thead가 collapse와 비호환이므로 separate 사용 (실측 발견) */
+.csv-table { border-collapse: separate; border-spacing: 0; border-top: 1px solid var(--border, #333); border-left: 1px solid var(--border, #333); font-variant-numeric: tabular-nums; }
 .csv-table th, .csv-table td {
-  border: 1px solid var(--border, #333); padding: 4px 8px;
+  border-right: 1px solid var(--border, #333); border-bottom: 1px solid var(--border, #333); padding: 4px 8px;
   text-align: left; white-space: nowrap; max-width: 360px;
   overflow: hidden; text-overflow: ellipsis;
 }
@@ -841,3 +844,7 @@
 .csv-arrow { margin-left: 4px; opacity: 0.8; font-size: 10px; }
 .csv-table tbody tr:nth-child(even) { background: rgba(127,127,127,0.06); }
 .csv-norows { text-align: center; opacity: 0.6; }
+
+/* CSV 레이아웃 보강 (독립 리뷰 #1/#2): 단일 스크롤러 + sticky 안정 */
+#content-body.csv-mode { padding: 0; display: flex; flex-direction: column; overflow: hidden; }
+#content-body.csv-mode .csv-wrap { flex: 1; min-height: 0; max-height: none; }

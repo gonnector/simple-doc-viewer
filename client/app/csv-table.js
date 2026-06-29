@@ -71,7 +71,12 @@
     }
     $content.innerHTML = toolbar + bodyHtml;
     var wrap = $content.querySelector('.csv-wrap');
-    if (wrap) wrap.addEventListener('scroll', updateStatusBar); // B1: 표 내부 스크롤도 상태바 반영
+    if (wrap) {
+      $content.classList.add('csv-mode'); // 단일 스크롤러 + sticky 안정 (독립 리뷰 #1/#2)
+      wrap.addEventListener('scroll', updateStatusBar); // B1: 표 내부 스크롤도 상태바 반영
+    } else {
+      $content.classList.remove('csv-mode'); // 원문 보기 모드는 일반 스크롤
+    }
     updateStatusBar();
   };
 
