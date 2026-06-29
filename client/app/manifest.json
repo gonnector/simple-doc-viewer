@@ -15,6 +15,7 @@
     "print.js",
     "ui2.js",
     "media-zoom.js",
+    "doc-zoom.js",
     "find.js",
     "search-wiring.js",
     "mermaid-loader.js",

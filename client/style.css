@@ -807,3 +807,16 @@
 
   /* Loading spinner */
   .loading { text-align: center; padding: 2em; color: var(--text-dim); }
+
+/* === 문서 영역 줌 (텍스트 뷰 전용 — 미디어/사이드바 제외) === */
+.md-rendered, .raw-view, .csv-table { zoom: var(--doc-zoom, 1); }
+#doc-zoom-toast {
+  position: fixed; bottom: 48px; right: 24px;
+  background: rgba(0,0,0,0.78); color: #fff;
+  padding: 6px 12px; border-radius: 6px;
+  font-size: 13px; font-variant-numeric: tabular-nums;
+  opacity: 0; transform: translateY(6px);
+  transition: opacity .15s ease, transform .15s ease;
+  pointer-events: none; z-index: 9999;
+}
+#doc-zoom-toast.visible { opacity: 1; transform: translateY(0); }
