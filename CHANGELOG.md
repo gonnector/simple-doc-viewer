@@ -6,6 +6,22 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.80.0] - 2026-06-29
+
+### Added
+- **문서 영역 줌**: Ctrl +/−/0 및 Ctrl+휠. 텍스트/마크다운/코드는 CSS zoom, CSV 표는 font-size 스케일(sticky 헤더 호환). 사이드바·미디어 제외, 배율 localStorage 영속화
+- **CSV/TSV 표 뷰**: 자체 RFC4180 파서(의존성 없음) + 표 렌더 + 컬럼 정렬(숫자/문자 자동, 오름/내림/원래 3상태) + 표/원문 토글 + sticky 헤더 + 5,000행 가드
+- **파일 연결(fileAssociations)**: Windows 우클릭 "연결 프로그램"에 SDV(md/pdf) 등장. 디폴트(.md=MMM)는 비가로채기 목표(설치 후 실기 확인)
+
+### Changed
+- **새로고침(R/버튼)**: 활성 문서와 함께 좌측 폴더 트리도 갱신(외부 추가/삭제/이름변경 반영). 이름변경 입력 중 보존
+- 클라이언트 번들 결합 구분자 개행화(ASI 방어)
+
+### Notes
+- 단위 테스트: 마크다운 28건 + CSV 파서 16건 PASS. 기능 1·2·3 브라우저판 실런타임 검증 PASS
+- 미검증(Dylan 실기): fileAssociations 디폴트 비가로채기, WebView2 네이티브 줌 중복, macOS/Linux
+- 레거시 install-context-menu.js(node 에디션)는 공존, deprecate 여부 미정
+
 ## [0.79] - 2026-06-12
 
 ### Added
