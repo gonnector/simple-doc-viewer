@@ -1,8 +1,6 @@
 lib/
 node_modules/
 .claude/
-sdv-open.vbs
-_sdv_temp.reg
 dist-tauri/
 src-tauri/target/
 src-tauri/gen/schemas/

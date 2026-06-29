@@ -41,8 +41,6 @@ simple-doc-viewer/
       state.js helpers.js api.js dragdrop.js navigation.js tree.js search.js
       tabs.js content.js markdown.js highlight.js ui.js print.js ui2.js
       media-zoom.js find.js search-wiring.js mermaid-loader.js shortcuts.js main.js
-  launcher.js                <- 컨텍스트 메뉴 런처
-  install-context-menu.js    <- Windows 컨텍스트 메뉴 등록/해제
   lib/ public/ reference/ docs/ scripts/
 ```
 

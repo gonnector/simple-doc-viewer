@@ -6,6 +6,11 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.80.2] - 2026-06-30
+
+### Removed
+- 레거시 브라우저판 Windows 컨텍스트 메뉴 스크립트 제거: `install-context-menu.js`, `launcher.js`, 생성물 `sdv-open.vbs`. 네이티브판의 fileAssociations + single-instance가 대체. 설치돼 있던 레지스트리 항목(`HKCU\…\*\shell\SDV`)은 uninstall로 정리. 앱 바이너리 불변(인스톨러 재빌드 불필요)
+
 ## [0.80.1] - 2026-06-30
 
 ### Added
