@@ -157,11 +157,15 @@ $findInput.addEventListener('input', function() {
 
 document.getElementById('btn-find').addEventListener('click', openFind);
 
-// Reload active document only (F5는 앱 전체 초기화이지만 이 버튼은 현재 탭만 재로드)
+// Reload active document + 좌측 폴더 트리 동시 갱신 (F5는 앱 전체 초기화이지만 이 버튼/단축키 R은 현재 뷰 갱신)
 function reloadActiveDoc() {
+  // 1) 좌측 폴더 트리 갱신 (외부에서 추가/삭제/이름변경된 파일 반영)
+  if (typeof refreshTree === 'function') refreshTree();
+
+  // 2) 활성 문서 재로드
   if (!state.activeTab) return;
   var filePath = state.activeTab;
-  // 가상 파일(드래그-드롭 등)은 재로드 불가
+  // 가상 파일(드래그-드롭 등)은 재로드 불가 (트리는 위에서 이미 갱신)
   if (filePath.indexOf('__dropped__/') === 0) return;
 
   var tab = state.tabCache[filePath];

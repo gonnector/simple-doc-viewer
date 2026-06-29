@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "SDV",
-  "version": "0.79.0",
+  "version": "0.80.0",
   "identifier": "com.gonnector.sdv",
   "build": {
     "frontendDist": "../dist-tauri",
@@ -45,6 +45,10 @@
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
+    ],
+    "fileAssociations": [
+      { "ext": ["md"], "name": "Markdown", "description": "Markdown document", "role": "Viewer" },
+      { "ext": ["pdf"], "name": "PDF", "description": "PDF document", "role": "Viewer" }
     ]
   }
 }

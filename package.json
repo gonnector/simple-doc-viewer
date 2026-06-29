@@ -1,11 +1,12 @@
 {
   "name": "simple-doc-viewer",
-  "version": "0.79.0",
+  "version": "0.80.0",
   "private": true,
   "description": "Lightweight local document viewer — browser edition (node server.js) + Tauri native edition",
   "scripts": {
     "start": "node server.js",
     "test:md": "node scripts/dev/test-markdown.js",
+    "test:csv": "node scripts/dev/test-csv.js",
     "build:frontend": "node scripts/build-tauri-frontend.js",
     "tauri": "tauri"
   },

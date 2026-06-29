@@ -1,5 +1,6 @@
 // --- Content rendering ---
 function renderContent(preserveScroll) {
+  $content.classList.remove('csv-mode'); // CSV 전용 레이아웃 클래스는 csv 렌더에서만 부여
   if (!state.activeTab) {
     showWelcome();
     return;
@@ -114,6 +115,9 @@ function renderContent(preserveScroll) {
       // JS 렌더링 HTML(번들 보고서 등)은 정상 동작하되, SDV API 호출은 Origin: null이라 서버 게이트가 403
       hf.setAttribute('srcdoc', data.content);
     }
+    if (!preserveScroll) $content.scrollTop = 0;
+  } else if (data.ext === 'csv' || data.ext === 'tsv') {
+    renderCsv(data);
     if (!preserveScroll) $content.scrollTop = 0;
   } else {
     $content.innerHTML = '<div class="raw-view' + (state.wordWrap ? ' word-wrap' : '') + '">' + renderRaw(data.content, data.ext) + '</div>';

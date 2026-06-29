@@ -10,6 +10,10 @@ document.addEventListener('keydown', function(e) {
     e.preventDefault();
     openFind();
   }
+  // Ctrl/Cmd +/-/0 문서 줌 (WebView2 내장 줌 가로채기 차단)
+  if ((e.ctrlKey || e.metaKey) && (e.key === '=' || e.key === '+')) { e.preventDefault(); sdvZoomIn(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === '-') { e.preventDefault(); sdvZoomOut(); }
+  if ((e.ctrlKey || e.metaKey) && e.key === '0') { e.preventDefault(); sdvZoomReset(); }
   // Escape to clear search
   if (e.key === 'Escape') {
     if ($helpOverlay.classList.contains('visible')) { closeHelp(); return; }
