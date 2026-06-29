@@ -1,6 +1,6 @@
 [package]
 name = "sdv"
-version = "0.80.0"
+version = "0.80.1"
 description = "SDV — Simple Doc Viewer (Tauri native edition)"
 authors = ["Gonnector"]
 edition = "2021"

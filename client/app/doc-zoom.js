@@ -13,8 +13,10 @@
     clearTimeout(_t);
     _t = setTimeout(function () { $toast.classList.remove('visible'); }, 900);
   }
+  var $lvl = document.getElementById('btn-zoom-level');
   function apply() {
     if ($content) $content.style.setProperty('--doc-zoom', (level / 100).toString());
+    if ($lvl) $lvl.textContent = level + '%'; // 헤더 줌 UI 실시간 표시
     try { localStorage.setItem(KEY, String(level)); } catch (e) {}
   }
   function setLevel(v, withToast) {
@@ -36,5 +38,12 @@
       if (e.deltaY < 0) window.sdvZoomIn(); else window.sdvZoomOut();
     }, { passive: false });
   }
-  apply(); // 로드 시 저장된 배율 복원 (토스트 없음)
+  // 헤더 줌 컨트롤 버튼 (− / % / +)
+  var $zo = document.getElementById('btn-zoom-out');
+  var $zi = document.getElementById('btn-zoom-in');
+  if ($zo) $zo.addEventListener('click', function () { window.sdvZoomOut(); });
+  if ($zi) $zi.addEventListener('click', function () { window.sdvZoomIn(); });
+  if ($lvl) $lvl.addEventListener('click', function () { window.sdvZoomReset(); });
+
+  apply(); // 로드 시 저장된 배율 복원 + UI 초기화 (토스트 없음)
 })();
