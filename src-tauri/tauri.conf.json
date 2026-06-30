@@ -1,7 +1,7 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
   "productName": "SDV",
-  "version": "0.80.2",
+  "version": "0.80.3",
   "identifier": "com.gonnector.sdv",
   "build": {
     "frontendDist": "../dist-tauri",

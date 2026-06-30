@@ -6,6 +6,12 @@ Format: [Keep a Changelog](https://keepachangelog.com/en/1.0.0/)
 
 ---
 
+## [0.80.3] - 2026-07-01
+
+### Fixed
+
+- **frontmatter `related:` 멀티라인 미표시** — `key:` 다음 줄들의 `  - item` 블록배열을 파싱해 불릿 리스트(`.fm-list`)로 표시. `tags: [a, b]` 인라인 배열은 기존대로 배지. related류 키는 불릿, 그 외 배열은 배지로 분기 (값 escHtml로 XSS 가드). MMM v0.7.x와 동일 처리
+
 ## [0.80.2] - 2026-06-30
 
 ### Removed

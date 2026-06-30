@@ -217,30 +217,58 @@ var md = (function() {
       if (lines[fi].trim() === '---') { end = fi; break; }
     }
     if (end === -1) return null;
-    var pairs = [];
-    for (var fj = 1; fj < end; fj++) {
-      var fmMatch = lines[fj].match(/^([\w-]+):\s*(.*)/);
-      if (fmMatch) pairs.push({ key: fmMatch[1], val: fmMatch[2] });
-    }
-    if (pairs.length === 0) return null;
-    var cardHtml = '<div class="frontmatter-card">';
-    for (var fk = 0; fk < pairs.length; fk++) {
-      var rawVal = pairs[fk].val.trim();
-      var valHtml = '';
-      // Array values: ["a", "b"] or [a, b]
+    var BULLET_KEYS = { related: 1, references: 1, refs: 1, links: 1, 'see-also': 1 };
+    var stripQ = function(s) { return s.replace(/^["']|["']$/g, ''); };
+    var rows = [];
+    var fj = 1;
+    while (fj < end) {
+      var m = lines[fj].match(/^([\w-]+):\s*(.*)$/);
+      if (!m) { fj++; continue; }
+      var key = m[1], rawVal = m[2].trim();
+      if (rawVal === '') {
+        // Block array: subsequent indented "- item" lines (e.g. related:)
+        var bitems = [];
+        var k = fj + 1;
+        while (k < end && /^\s*-\s+/.test(lines[k])) {
+          bitems.push(stripQ(lines[k].replace(/^\s*-\s+/, '').trim()));
+          k++;
+        }
+        if (bitems.length) {
+          rows.push({ key: key, items: bitems, bullet: !!BULLET_KEYS[key.toLowerCase()] });
+          fj = k; continue;
+        }
+        fj++; continue;
+      }
       var arrMatch = rawVal.match(/^\[(.*)\]$/);
       if (arrMatch) {
-        var items = arrMatch[1].split(',');
-        for (var ai = 0; ai < items.length; ai++) {
-          var tag = items[ai].trim().replace(/^["']|["']$/g, '');
-          if (tag) valHtml += '<span class="fm-tag">' + escHtml(tag) + '</span>';
+        var aitems = arrMatch[1].split(',').map(function(s){ return stripQ(s.trim()); })
+          .filter(function(s){ return s; });
+        rows.push({ key: key, items: aitems, bullet: !!BULLET_KEYS[key.toLowerCase()] });
+        fj++; continue;
+      }
+      rows.push({ key: key, scalar: stripQ(rawVal) });
+      fj++;
+    }
+    if (rows.length === 0) return null;
+    var cardHtml = '<div class="frontmatter-card">';
+    for (var r = 0; r < rows.length; r++) {
+      var row = rows[r], valHtml = '';
+      if (row.items) {
+        if (row.bullet) {
+          // Long items (file paths / related docs) → bullet list
+          valHtml = '<ul class="fm-list">';
+          for (var bi = 0; bi < row.items.length; bi++) valHtml += '<li>' + escHtml(row.items[bi]) + '</li>';
+          valHtml += '</ul>';
+        } else {
+          // Short tags → inline badges
+          for (var ti = 0; ti < row.items.length; ti++) {
+            if (row.items[ti]) valHtml += '<span class="fm-tag">' + escHtml(row.items[ti]) + '</span>';
+          }
         }
       } else {
-        // Strip surrounding quotes
-        var clean = rawVal.replace(/^["']|["']$/g, '');
-        valHtml = escHtml(clean);
+        valHtml = escHtml(row.scalar);
       }
-      cardHtml += '<span class="fm-key">' + escHtml(pairs[fk].key) + '</span>'
+      cardHtml += '<span class="fm-key">' + escHtml(row.key) + '</span>'
         + '<span class="fm-val">' + valHtml + '</span>';
     }
     cardHtml += '</div>';

@@ -584,6 +584,11 @@
     display: inline-block; background: rgba(88,166,255,0.1); color: var(--accent);
     padding: 1px 7px; border-radius: 4px; font-size: 12px; margin: 1px 2px;
   }
+  .md-rendered .frontmatter-card .fm-val .fm-list {
+    list-style: disc; margin: 0; padding-left: 1.2em;
+  }
+  .md-rendered .frontmatter-card .fm-val .fm-list li { margin: 0.1em 0; }
+  .md-rendered .frontmatter-card .fm-val .fm-list li::marker { color: var(--accent2); }
 
   /* Syntax highlight in markdown code blocks */
   .hljs-keyword { color: #ff7b72; }

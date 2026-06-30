@@ -60,5 +60,11 @@ t('footnote', 'text[^1]\n\n[^1]: note', ['footnote-ref', 'fn1']);
 t('checklist', '- [x] done\n- [ ] todo', ['checked disabled', 'task-list-item']);
 t('blockquote', '> quoted', ['<blockquote>']);
 
+// === frontmatter (인라인 배지 + related 멀티라인 불릿 + XSS) ===
+t('fm-scalar', '---\ntitle: Hello World\n---\n\nbody', ['fm-key', 'Hello World']);
+t('fm-tags-inline-badge', '---\ntags: [kt, poc]\n---\n\nbody', ['fm-tag', 'kt', 'poc']);
+t('fm-related-block-bullet', '---\nrelated:\n  - doc-a.md\n  - doc-b.md\n---\n\nbody', ['fm-list', '<li>doc-a.md</li>', '<li>doc-b.md</li>']);
+t('fm-related-block-xss', '---\nrelated:\n  - <img src=x onerror=alert(1)>\n---\n\nbody', ['&lt;img'], ['<img src=x']);
+
 console.log('\n' + pass + ' passed, ' + fail + ' failed');
 process.exit(fail ? 1 : 0);
